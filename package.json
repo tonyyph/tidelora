@@ -1,0 +1,72 @@
+{
+  "name": "tidelora",
+  "version": "0.1.0",
+  "main": "expo-router/entry",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo start --ios",
+    "android": "expo start --android",
+    "test": "jest",
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test",
+    "sounds": "node tools/generate-sounds.js",
+    "assets": "node tools/generate-assets.js",
+    "icons": "node tools/generate-icons.mjs",
+    "asc:app-id": "node tools/asc-app-id.js",
+    "build:ios": "sh tools/eas.sh build --platform ios --profile production --non-interactive --wait",
+    "submit:ios": "sh tools/eas.sh submit --platform ios --profile production --latest --non-interactive --wait",
+    "release:ios": "pnpm verify && pnpm build:ios && pnpm submit:ios"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFiles": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "testMatch": [
+      "**/?(*.)test.ts?(x)"
+    ]
+  },
+  "dependencies": {
+    "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
+    "@expo-google-fonts/lora": "^0.4.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@shopify/react-native-skia": "2.14.0",
+    "expo": "~58.0.16",
+    "expo-asset": "~58.0.18",
+    "expo-audio": "~58.0.10",
+    "expo-constants": "~58.0.13",
+    "expo-font": "~58.0.9",
+    "expo-haptics": "~58.0.7",
+    "expo-linear-gradient": "~58.0.3",
+    "expo-linking": "~58.0.14",
+    "expo-router": "~58.0.25",
+    "expo-screen-orientation": "~58.0.3",
+    "expo-splash-screen": "~58.0.11",
+    "expo-status-bar": "~58.0.4",
+    "expo-system-ui": "~58.0.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-gesture-handler": "~3.3.0",
+    "react-native-reanimated": "4.7.1",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0",
+    "react-native-web": "^0.21.4",
+    "react-native-worklets": "0.13.0",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^58.0.4",
+    "jest": "^30.5.2",
+    "jest-expo": "^58.0.12",
+    "typescript": "^6.0.3"
+  }
+}

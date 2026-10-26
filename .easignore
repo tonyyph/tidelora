@@ -1,0 +1,18 @@
+# Used by EAS when building without git (see tools/eas.sh). Mirrors .gitignore.
+node_modules/
+.expo/
+dist/
+web-build/
+ios/
+android/
+*.log
+.DS_Store
+credentials/
+.env.eas
+.env*.local
+*.p8
+*.p12
+*.key
+*.mobileprovision
+coverage/
+docs/design/

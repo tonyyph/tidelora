@@ -21,3 +21,11 @@ export const HINT_GENERAL: Partial<Record<Phase, string>> = {
   aiming: 'Kéo trên mặt nước để ngắm · thả tay để quăng',
   waiting: 'Chờ phao chìm hẳn, nút Giật sẽ sáng lên',
 };
+
+const STEPS: Partial<Record<Phase, number>> = { aiming: 1, casting: 1, settling: 2, waiting: 2, investigating: 2, nibbling: 2, hookWindow: 3, fighting: 4, landing: 5 };
+
+/** Where the first trip is, as [step, of]: cast, watch, strike, reel, net. */
+export function coachStep(phase: Phase): [number, number] | null {
+  const n = STEPS[phase];
+  return n ? [n, 5] : null;
+}

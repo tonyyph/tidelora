@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
 import Animated, { FadeIn, runOnJS, useAnimatedStyle, useFrameCallback, useSharedValue } from 'react-native-reanimated';
 
 import { play, setLoop } from '../audio/sound';
@@ -14,7 +15,7 @@ import { useGame } from '../state/gameStore';
 import { formatWeight } from '../ui/format';
 import { Button, Divider, Panel, T } from '../ui/primitives';
 import { ScreenFrame } from '../ui/Screen';
-import { C } from '../ui/theme';
+import { C, F } from '../ui/theme';
 import { WoodSurface } from '../ui/WoodSurface';
 
 /**
@@ -32,6 +33,7 @@ export default function Kitchen() {
   });
   const [cooking, setCooking] = useState(false);
   const [done, setDone] = useState<DishLot | null>(null);
+  const listRef = useRef<ScrollViewInstance>(null);
 
   const recipe = RECIPES[recipeId];
   const options = useMemo(() => (save ? candidates(save, recipe) : []), [save, recipe]);
@@ -52,6 +54,10 @@ export default function Kitchen() {
     return s + (c ? catchPrice(c) : 0);
   }, 0);
   const dishValue = check.ok ? dishPrice({ id: '', recipeId, portions: check.portions, quality: check.quality, sourceCatchIds: [], day: 0, minute: 0 }) : 0;
+
+  const pantryCost = recipe.pantry * PANTRY_PRICE;
+  const gain = dishValue - pantryCost - rawValue;
+  const longList = options.length > 4;
 
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
@@ -122,7 +128,8 @@ export default function Kitchen() {
           ) : options.length === 0 ? (
             <T kind="caption">Kho chưa có cá hợp món. {recipe.substitutes}</T>
           ) : (
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 4 }}>
+            <View style={{ flex: 1 }}>
+            <ScrollView ref={listRef} onLayout={() => longList && listRef.current?.flashScrollIndicators()} style={{ flex: 1 }} contentContainerStyle={{ gap: 4, paddingBottom: longList ? 22 : 0 }}>
               {options.map((c) => {
                 const on = picked.includes(c.id);
                 return (
@@ -136,18 +143,19 @@ export default function Kitchen() {
                 );
               })}
             </ScrollView>
+            {longList && <LinearGradient colors={['rgba(11,26,29,0)', 'rgba(11,26,29,0.95)']} style={styles.listFade} pointerEvents="none" />}
+            </View>
           )}
           <Divider />
           {check.ok ? (
-            <>
-              <T kind="caption">
-                {check.portions} phần · chất lượng ~{Math.round(check.quality * 100)}%
+            <View style={[styles.verdict, { borderColor: gain >= 0 ? C.fresh : C.warn }]}>
+              <Line k={`Món ${check.portions} phần · ${Math.round(check.quality * 100)}%`} v={`~${dishValue} xu`} />
+              <Line k={`Gia vị ${recipe.pantry} phần`} v={`−${pantryCost} xu`} />
+              <Line k="Nếu bán cá sống" v={`~${rawValue} xu`} />
+              <T style={[styles.verdictText, { color: gain >= 0 ? C.fresh : C.warn }]}>
+                {gain >= 0 ? `Nấu lời hơn ${gain} xu` : `Bán sống lời hơn ${-gain} xu`}
               </T>
-              <T kind="caption">
-                Món ~{dishValue} xu · bán cá sống ~{rawValue} xu
-                {dishValue - recipe.pantry * PANTRY_PRICE < rawValue ? ' (bán sống lời hơn)' : ''}
-              </T>
-            </>
+            </View>
           ) : (
             <T kind="caption" style={{ color: C.warn }}>{COOK_ERROR_VI[check.error]}</T>
           )}
@@ -156,6 +164,15 @@ export default function Kitchen() {
         </Panel>
       </View>
     </ScreenFrame>
+  );
+}
+
+function Line({ k, v }: { k: string; v: string }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      <T kind="caption">{k}</T>
+      <T kind="caption" style={{ color: C.ivory }}>{v}</T>
+    </View>
   );
 }
 
@@ -226,6 +243,9 @@ const styles = StyleSheet.create({
   dishWrap: { alignItems: 'center' },
   doneBox: { alignItems: 'center', marginTop: 6 },
   side: { width: 270 },
+  listFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 28 },
+  verdict: { gap: 3, padding: 10, borderRadius: 10, borderWidth: 1, backgroundColor: 'rgba(243,235,221,0.05)' },
+  verdictText: { fontFamily: F.sansBold, fontSize: 15, marginTop: 4 },
   fishRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 7, borderRadius: 8, borderWidth: 1, borderColor: C.line },
   check: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.5)' },
   fire: { flexDirection: 'row', gap: 12, padding: 10, borderRadius: 12, backgroundColor: 'rgba(11,26,29,0.7)', marginTop: 8 },

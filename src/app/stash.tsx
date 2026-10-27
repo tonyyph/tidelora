@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { play } from '../audio/sound';
 import { RECIPES } from '../cooking/recipes';
@@ -41,6 +41,9 @@ export default function Stash() {
   const speciesHere = [...new Set(all.map((c) => c.speciesId))];
   const chosen = fish.filter((c) => picked.has(c.id));
   const total = chosen.reduce((s, c) => s + catchPrice(c), 0);
+  const chestValue = all.reduce((s, c) => s + catchPrice(c), 0);
+  // Fading fish lose value first, so picking them all is one tap.
+  const fading = all.filter((c) => band(c.freshness) === 'fading');
 
   const toggle = (id: string) => {
     const next = new Set(picked);
@@ -86,12 +89,12 @@ export default function Stash() {
         ) : (
           <View style={{ flex: 1, flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <View style={styles.filters}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filters}>
                 <Tab small on={!filter} label="Tất cả" onPress={() => setFilter(null)} />
                 {speciesHere.map((id) => (
                   <Tab key={id} small on={filter === id} label={`${SPECIES_BIO[id].nameVi} · ${all.filter((c) => c.speciesId === id).length}`} onPress={() => setFilter(id)} />
                 ))}
-              </View>
+              </ScrollView>
               <FlatList
                 data={fish}
                 keyExtractor={(c) => c.id}
@@ -110,20 +113,21 @@ export default function Stash() {
               />
             </View>
             <Panel style={styles.side}>
-              <T kind="label">Đã chọn</T>
-              <T kind="display" style={{ fontSize: 24, lineHeight: 30 }}>{chosen.length} con</T>
-              <T kind="caption">Giá chợ hôm nay: {total} xu</T>
-              <View style={{ gap: 6, marginTop: 10 }}>
-                <Button label={`Bán ${chosen.length ? `· +${total} xu` : ''}`} kind="primary" disabled={!chosen.length} onPress={sell} />
-                <View style={{ flexDirection: 'row', gap: 4 }}>
-                  <Button label="Chọn hết" small kind="quiet" onPress={() => setPicked(new Set(fish.map((c) => c.id)))} />
-                  <Button label="Bỏ chọn" small kind="quiet" disabled={!chosen.length} onPress={() => setPicked(new Set())} />
+              <T kind="label">Cả kho · {all.length} con</T>
+              <T kind="caption">Giá chợ hôm nay ~{chestValue} xu</T>
+              <View style={styles.sideBlock}>
+                <Button label={chosen.length ? `Bán ${chosen.length} con · +${total} xu` : 'Chạm cá để chọn'} kind="primary" disabled={!chosen.length} onPress={sell} />
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <Button label="Chọn hết" small style={{ flex: 1 }} onPress={() => setPicked(new Set(fish.map((c) => c.id)))} />
+                  <Button label="Bỏ chọn" small style={{ flex: 1 }} disabled={!chosen.length} onPress={() => setPicked(new Set())} />
                 </View>
-                <Button label="Mang vào bếp" small onPress={() => router.push('/kitchen')} />
+                {fading.length > 0 && (
+                  <Button label={`Chọn ${fading.length} con kém tươi`} small kind="danger" onPress={() => setPicked(new Set(fading.map((c) => c.id)))} />
+                )}
               </View>
-              <T kind="caption" style={{ marginTop: 8 }}>
-                Độ tươi chỉ giảm theo giờ trong game (mỗi lần câu, nấu, đi lại), không giảm khi bạn tắt ứng dụng.
-              </T>
+              <View style={{ flex: 1 }} />
+              <Button label="Mang vào bếp" small onPress={() => router.push('/kitchen')} />
+              <T kind="caption" style={{ marginTop: 6 }}>Cá chỉ giảm tươi theo giờ trong game.</T>
             </Panel>
           </View>
         )
@@ -162,16 +166,18 @@ function FishRow({ item, picked, onPress }: { item: CatchItem; picked: boolean; 
   return (
     <Pressable onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked: picked }} style={[styles.row, picked && styles.rowOn]}>
       <View style={[styles.check, picked && styles.checkOn]} />
-      <View style={{ width: 72, alignItems: 'center' }}>
-        <FishArt speciesId={item.speciesId} width={Math.min(72, 28 + item.lengthCm * 1.2)} shadow={false} />
+      <View style={{ width: 92, alignItems: 'center' }}>
+        <FishArt speciesId={item.speciesId} width={Math.min(92, 44 + item.lengthCm * 1.6)} shadow={false} />
       </View>
       <View style={{ flex: 1 }}>
         <T style={{ fontSize: 15 }} numberOfLines={1}>
-          {item.lengthCm.toLocaleString('vi-VN')} cm · {formatWeight(item.weightKg)}
+          {formatWeight(item.weightKg)}
         </T>
-        <T kind="caption">Ngày {item.day} · {item.condition === 'excellent' ? 'nguyên vẹn' : item.condition === 'good' ? 'tốt' : 'trầy nhẹ'}</T>
+        <T kind="caption" numberOfLines={1}>
+          {item.lengthCm.toLocaleString('vi-VN')} cm · ngày {item.day}
+        </T>
       </View>
-      <View style={{ width: 110, gap: 4 }}>
+      <View style={{ width: 86, gap: 4 }}>
         <T kind="caption" style={{ color: b === 'fading' ? C.warn : b === 'good' ? C.brass : C.fresh }}>{BAND_LABEL[b]}</T>
         <View style={styles.bar}>
           <View style={[styles.barFill, { width: `${Math.round(item.freshness * 100)}%`, backgroundColor: b === 'fading' ? C.warn : C.mist }]} />
@@ -203,7 +209,9 @@ function Empty({ title, body, action, onAction }: { title: string; body: string;
 
 const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  filterScroll: { flexGrow: 0, marginBottom: 8 },
+  filters: { flexDirection: 'row', gap: 6 },
+  sideBlock: { gap: 8, marginTop: 12 },
   tab: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(11,26,29,0.55)', borderWidth: 1, borderColor: C.line },
   tabOn: { backgroundColor: C.ivory, borderColor: C.ivory },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 12, backgroundColor: 'rgba(11,26,29,0.72)', borderWidth: 1, borderColor: 'transparent' },
@@ -212,7 +220,7 @@ const styles = StyleSheet.create({
   checkOn: { backgroundColor: C.brass, borderColor: C.brass },
   bar: { height: 4, borderRadius: 2, backgroundColor: 'rgba(243,235,221,0.15)' },
   barFill: { height: 4, borderRadius: 2 },
-  side: { width: 250 },
+  side: { width: 240, gap: 2 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
   emptyMark: { width: 54, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.35)', marginBottom: 8 },
 });

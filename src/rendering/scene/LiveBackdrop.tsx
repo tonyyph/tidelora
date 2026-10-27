@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useWindowDimensions } from 'react-native';
-import { useSharedValue } from 'react-native-reanimated';
+import { StyleSheet, useWindowDimensions } from 'react-native';
+import Animated, { FadeIn, useSharedValue } from 'react-native-reanimated';
 
 import { BAU_SEN } from '../../ecology/locations';
 import { STARTER_LOADOUT, resolveLoadout } from '../../gear/catalog';
@@ -22,6 +22,7 @@ export function LiveBackdrop() {
   const { width, height } = useWindowDimensions();
   const frame = useSharedValue(emptyFrame());
   const settings = useGame((s) => s.settings);
+  const minute = useGame((s) => s.save?.minute);
   const [runtime] = useState(() => {
     attractRuns += 1;
     const session = createSession(hashSeed(`attract-${attractRuns}`), {
@@ -55,5 +56,9 @@ export function LiveBackdrop() {
     return () => runtime.stop();
   }, [runtime]);
 
-  return <BauSenScene width={width} height={height} frame={frame} quality={settings.quality} reducedMotion={settings.reducedMotion} />;
+  return (
+    <Animated.View entering={FadeIn.duration(500)} style={StyleSheet.absoluteFill}>
+      <BauSenScene width={width} height={height} frame={frame} quality={settings.quality} reducedMotion={settings.reducedMotion} minute={minute} />
+    </Animated.View>
+  );
 }

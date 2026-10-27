@@ -20,6 +20,8 @@ exp://127.0.0.1:<port>/--/dev?act=cast&dir=-0.5&power=0.6&auto=strike,fight,net 
 exp://127.0.0.1:<port>/--/dev?store=keep | store=release | store=home
 exp://127.0.0.1:<port>/--/dev?rich=1&to=kitchen                               # save có sẵn cá và tiền
 exp://127.0.0.1:<port>/--/dev?debug=1                                         # lớp debug chọn loài trên màn câu
+exp://127.0.0.1:<port>/--/dev?minute=1080&to=fish                             # đặt giờ trong game (18:00)
+exp://127.0.0.1:<port>/--/dev?act=cast&dir=-0.4&power=0.5&hold=hookWindow     # dừng mô phỏng đúng lúc một pha
 exp://127.0.0.1:<port>/--/journal?sp=channa-striata
 ```
 

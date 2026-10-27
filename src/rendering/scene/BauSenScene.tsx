@@ -25,6 +25,7 @@ import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
 import { makeView } from '../projection';
 import type { SceneFrame } from '../sceneFrame';
 import { DAWN, recordBackdrop, recordForeground, recordGrass, recordLotus, recordRootTrees, SUN_X } from './bauSenBackdrop';
+import { timeGrade } from './timeOfDay';
 import { WATER_EFFECT } from './waterShader';
 
 type Props = {
@@ -35,6 +36,8 @@ type Props = {
   reducedMotion: boolean;
   /** Screen rect of the float close-up, or null to hide it. */
   loupe?: { x: number; y: number; w: number; h: number } | null;
+  /** Game clock in minutes since midnight; grades the dawn painting to the hour. */
+  minute?: number;
 };
 
 const hex3 = (h: string) => {
@@ -46,7 +49,7 @@ const SHALLOW = hex3('#44554A');
 
 const MIDGES = Array.from({ length: 9 }, (_, i) => ({ phase: i * 1.7, ox: (i * 37) % 100, oy: (i * 53) % 100 }));
 
-export function BauSenScene({ width, height, frame, quality, reducedMotion, loupe = null }: Props) {
+export function BauSenScene({ width, height, frame, quality, reducedMotion, loupe = null, minute = 6 * 60 }: Props) {
   const view = useMemo(() => makeView(width, height), [width, height]);
   const layers = useMemo(() => {
     const backdrop = recordBackdrop(view);
@@ -256,6 +259,7 @@ export function BauSenScene({ width, height, frame, quality, reducedMotion, loup
     return [{ translateX: lcx + f.floatLie * 10 }, { translateY: lcy }, { scale: 2.1 }, { translateY: dip * 22 }, { rotate: f.floatLie * 1.35 }];
   });
   const loupeFish = useDerivedValue(() => (frame.value.fishHeading ? 0 : frame.value.fishAlpha * 1.4));
+  const grade = timeGrade(minute);
   const loupeHot = useDerivedValue(() => (frame.value.bite >= 1 ? (reducedMotion ? 1 : 0.6 + 0.4 * Math.abs(Math.sin(clock.value / 160))) : 0));
 
   return (
@@ -327,6 +331,8 @@ export function BauSenScene({ width, height, frame, quality, reducedMotion, loup
         <RadialGradient c={vec(sunX, view.horizon * 0.85)} r={Math.max(width, height) * 0.9} colors={['#00000000', '#00000000', '#0A12124D']} positions={[0, 0.55, 1]} />
       </Rect>
       <Fill color="#F1CFA0" opacity={0.035} blendMode="softLight" />
+      {grade.tint !== '#FFFFFF' && <Fill color={grade.tint} blendMode="multiply" />}
+      {grade.lift > 0 && <Fill color="#FFFFFF" opacity={grade.lift} blendMode="softLight" />}
 
       {loupe && (
         <Group opacity={loupeOpacity}>

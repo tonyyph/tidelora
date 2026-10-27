@@ -17,12 +17,13 @@ import { inCooler } from '../inventory/catches';
 import { clockLabel } from '../preservation/freshness';
 import { makeView, unproject } from '../rendering/projection';
 import { BauSenScene } from '../rendering/scene/BauSenScene';
+import { conditionsLabel } from '../rendering/scene/timeOfDay';
 import { emptyFrame, type SceneFrame } from '../rendering/sceneFrame';
 import { devRegistry } from '../dev/registry';
 import { hashSeed } from '../simulation/rng';
 import { newSave } from '../persistence/schema';
 import { useGame } from '../state/gameStore';
-import { COACH, HINT_GENERAL } from '../tutorial/coach';
+import { COACH, coachStep, HINT_GENERAL } from '../tutorial/coach';
 import { CatchResult } from '../ui/fishing/CatchResult';
 import { DebugOverlay } from '../ui/fishing/DebugOverlay';
 import { TackleSheet } from '../ui/fishing/TackleSheet';
@@ -284,9 +285,9 @@ export default function FishScreen() {
   return (
     <View style={styles.root}>
       <GestureDetector gesture={pan}>
-        <View style={StyleSheet.absoluteFill}>
-          <BauSenScene width={width} height={height} frame={frame} quality={settings.quality} reducedMotion={settings.reducedMotion} loupe={loupe} />
-        </View>
+        <Animated.View entering={FadeIn.duration(450)} style={StyleSheet.absoluteFill}>
+          <BauSenScene width={width} height={height} frame={frame} quality={settings.quality} reducedMotion={settings.reducedMotion} loupe={loupe} minute={save.minute} />
+        </Animated.View>
       </GestureDetector>
 
       <Animated.View style={[StyleSheet.absoluteFill, hudStyle]} pointerEvents="box-none">
@@ -300,7 +301,7 @@ export default function FishScreen() {
         {/* Top centre: conditions */}
         <View style={[styles.topCenter, { top: insets.top + 16 }]} pointerEvents="none">
           <T kind="caption" style={styles.cond}>
-            {BAU_SEN.weather.nameVi} · Nước {BAU_SEN.waterTempC.value}°C{aimSpot && phase === 'aiming' ? `  ·  ${aimSpot}` : ''}
+            {conditionsLabel(save.minute, BAU_SEN.weather.nameVi)} · Nước {BAU_SEN.waterTempC.value}°C{aimSpot && phase === 'aiming' ? `  ·  ${aimSpot}` : ''}
           </T>
         </View>
         {/* Top-right: pause */}
@@ -357,7 +358,8 @@ export default function FishScreen() {
               </Pressable>
             </View>
           )}
-          <View style={styles.mainRow}>
+          <View style={[styles.mainRow, left && { flexDirection: 'row-reverse' }]}>
+            {tutorial && POINT_AT[phase] && <Pointer key={phase} label={POINT_AT[phase]!} flip={left} reducedMotion={settings.reducedMotion} />}
             {QUIET.includes(phase) && <Button small label="Thu cần" onPress={() => runtime.input({ type: 'retrieve' })} />}
             {STRIKE.includes(phase) && (
               <Pressable accessibilityRole="button" accessibilityLabel="Giật cần" onPressIn={() => runtime.input({ type: 'strike' })} style={[styles.big, styles.bigStrike, strikeHot && styles.bigHot]}>
@@ -387,8 +389,18 @@ export default function FishScreen() {
         </View>
 
         {coach && !failed && !save.pendingCatch && !notice && (
-          <Coach key={phase} text={coach} top={insets.top + 50} sticky={phase === 'hookWindow' || phase === 'landing'} hot={phase === 'hookWindow'} />
+          <Coach
+            key={phase}
+            text={coach}
+            step={tutorial ? coachStep(phase) : null}
+            top={insets.top + 50}
+            // Mid-fight the panel sits by the thumb, so the line moves to the other side.
+            side={fighting ? (left ? { right: insets.right + 20 } : { left: insets.left + 20 }) : null}
+            sticky={tutorial || phase === 'hookWindow' || phase === 'landing'}
+            hot={phase === 'hookWindow'}
+          />
         )}
+        {tutorial && phase === 'aiming' && !save.pendingCatch && <AimDemo width={width} height={height} reducedMotion={settings.reducedMotion} />}
       </Animated.View>
 
       {failed && outcome && (
@@ -442,7 +454,7 @@ type FightInfo = { heading: number; mode: string | null; slipping: boolean };
 const NO_FIGHT: FightInfo = { heading: 0, mode: null, slipping: false };
 
 /** Short coaching line under the top bar. Fades out after a few seconds unless the moment needs it. */
-function Coach({ text, top, sticky, hot }: { text: string; top: number; sticky: boolean; hot: boolean }) {
+function Coach({ text, step, top, side, sticky, hot }: { text: string; step: [number, number] | null; top: number; side: { left: number } | { right: number } | null; sticky: boolean; hot: boolean }) {
   const [visible, setVisible] = useState(true);
   useEffect(() => {
     if (sticky) return;
@@ -451,8 +463,53 @@ function Coach({ text, top, sticky, hot }: { text: string; top: number; sticky: 
   }, [sticky]);
   if (!visible) return null;
   return (
-    <Animated.View entering={FadeIn.duration(250)} exiting={FadeOut.duration(400)} style={[styles.coach, { top }]} pointerEvents="none">
-      <T style={[styles.coachText, hot && { color: C.ink, backgroundColor: C.brass }]}>{text}</T>
+    <Animated.View entering={FadeIn.duration(250)} exiting={FadeOut.duration(400)} style={[styles.coach, { top }, side && { ...side, alignSelf: undefined, maxWidth: 340, top: top + 22 }]} pointerEvents="none">
+      <T style={[styles.coachText, hot && { color: C.ink, backgroundColor: C.brass }]}>
+        {step && <T style={[styles.coachStep, hot && { color: C.ink }]}>{`Bước ${step[0]}/${step[1]}  `}</T>}
+        {text}
+      </T>
+    </Animated.View>
+  );
+}
+
+/** First trip only: which thumb control to look at, said beside it. */
+const POINT_AT: Partial<Record<Phase, string>> = { hookWindow: 'Bấm', fighting: 'Giữ', landing: 'Bấm' };
+
+/** A small label with a chevron nudging toward the button it sits next to. */
+function Pointer({ label, flip, reducedMotion }: { label: string; flip: boolean; reducedMotion: boolean }) {
+  const k = useSharedValue(0);
+  useEffect(() => {
+    if (!reducedMotion) k.value = withRepeat(withTiming(1, { duration: 550 }), -1, true);
+    return () => cancelAnimation(k);
+  }, [reducedMotion, k]);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: (flip ? -1 : 1) * k.value * 6 }] }));
+  return (
+    <Animated.View entering={FadeIn.duration(250)} style={[styles.pointer, style]} pointerEvents="none">
+      <T style={styles.pointerText}>{flip ? `← ${label}` : `${label} →`}</T>
+    </Animated.View>
+  );
+}
+
+/** First cast: a ghost fingertip drags from the bank toward the lotus edge, then lifts. */
+function AimDemo({ width, height, reducedMotion }: { width: number; height: number; reducedMotion: boolean }) {
+  const k = useSharedValue(reducedMotion ? 1 : 0);
+  useEffect(() => {
+    if (!reducedMotion) k.value = withRepeat(withTiming(1, { duration: 1600 }), -1, false);
+    return () => cancelAnimation(k);
+  }, [reducedMotion, k]);
+  const from = { x: width * 0.52, y: height * 0.86 };
+  const to = { x: width * 0.32, y: height * 0.64 };
+  const dot = useAnimatedStyle(() => {
+    const t = Math.min(1, k.value / 0.75);
+    const e = 1 - (1 - t) * (1 - t);
+    return {
+      opacity: k.value < 0.08 ? k.value / 0.08 : k.value > 0.85 ? Math.max(0, (1 - k.value) / 0.15) : 1,
+      transform: [{ translateX: from.x + (to.x - from.x) * e - 22 }, { translateY: from.y + (to.y - from.y) * e - 22 }, { scale: k.value > 0.75 ? 1 - (k.value - 0.75) * 1.2 : 1 }],
+    };
+  });
+  return (
+    <Animated.View style={[styles.finger, dot]} pointerEvents="none">
+      <View style={styles.fingerCore} />
     </Animated.View>
   );
 }
@@ -505,7 +562,7 @@ function FightPanel({ frame, info, landing, reducedMotion }: { frame: SharedValu
         <View style={styles.staminaTrack}>
           <Animated.View style={[styles.staminaFill, stamina]} />
         </View>
-        <T style={styles.heading}>{info.heading < 0 ? '◀' : info.heading > 0 ? '▶' : ''}</T>
+        <T style={styles.heading}>{info.heading < 0 ? '◀\uFE0E' : info.heading > 0 ? '▶\uFE0E' : ''}</T>
       </View>
       {!landing && info.mode && <T kind="caption" style={info.mode === 'cover' ? { color: C.warn } : undefined}>{MODE_VI[info.mode] ?? ''}</T>}
       <TensionGauge frame={frame} reducedMotion={reducedMotion} />
@@ -546,6 +603,11 @@ const styles = StyleSheet.create({
   bigPressed: { backgroundColor: 'rgba(243,235,221,0.22)', transform: [{ scale: 0.97 }] },
   bigText: { fontFamily: F.sansBold, fontSize: 18, color: C.ivory },
   coach: { position: 'absolute', alignSelf: 'center', maxWidth: 420 },
+  coachStep: { fontFamily: F.sansBold, fontSize: 12.5, color: C.brass },
+  pointer: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(11,26,29,0.7)' },
+  pointerText: { fontFamily: F.sansBold, fontSize: 15, color: '#E9CF95' },
+  finger: { position: 'absolute', left: 0, top: 0, width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: 'rgba(243,235,221,0.85)', alignItems: 'center', justifyContent: 'center' },
+  fingerCore: { width: 16, height: 16, borderRadius: 8, backgroundColor: 'rgba(243,235,221,0.75)' },
   coachText: { textAlign: 'center', fontSize: 13.5, lineHeight: 19, color: C.ivory, backgroundColor: 'rgba(11,26,29,0.62)', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, overflow: 'hidden' },
   failWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   fail: { maxWidth: 460, minWidth: 320 },

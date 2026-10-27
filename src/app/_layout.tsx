@@ -53,7 +53,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider value={theme}>
           <StatusBar hidden />
-          <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: C.ink } }} />
+          <Stack screenOptions={{ headerShown: false, animation: 'fade', animationDuration: 320, contentStyle: { backgroundColor: C.ink } }} />
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

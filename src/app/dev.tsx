@@ -15,6 +15,8 @@ import { useGame } from '../state/gameStore';
  *   exp://127.0.0.1:8095/--/dev?new=1&to=fish
  *   exp://127.0.0.1:8095/--/dev?act=cast&dir=-0.5&power=0.6&auto=strike,fight,net
  *   exp://127.0.0.1:8095/--/dev?seed=rich&to=kitchen
+ *   exp://127.0.0.1:8095/--/dev?act=cast&dir=-0.4&power=0.5&hold=hookWindow   (freeze at a phase)
+ *   exp://127.0.0.1:8095/--/dev?minute=1080&to=fish   (set the clock)
  */
 export default function Dev() {
   const p = useLocalSearchParams<Record<string, string>>();
@@ -29,6 +31,7 @@ export default function Dev() {
       if (p.debug) g.updateSettings({ debug: p.debug === '1' });
       if (p.tutorial === 'done') g.completeTutorial();
       if (p.money) g.patch((s) => ({ ...s, money: Number(p.money) }));
+      if (p.minute) g.patch((s) => ({ ...s, minute: Number(p.minute) }));
       if (p.bait) g.setBait(p.bait as never);
       if (p.depth) g.setBaitDepth(Number(p.depth));
       if (p.equip) {
@@ -80,6 +83,16 @@ export default function Dev() {
           if (p.auto) {
             const a = p.auto.split(',');
             autopilot(rt, { strike: a.includes('strike'), fight: a.includes('fight'), net: a.includes('net') });
+          }
+          if (p.hold) {
+            // Freeze the simulation when it reaches a phase, for screenshots of that moment.
+            const id = setInterval(() => {
+              if (rt.session.phase === p.hold) {
+                rt.pause();
+                clearInterval(id);
+              }
+            }, 30);
+            setTimeout(() => clearInterval(id), 60000);
           }
         }
         router.back();

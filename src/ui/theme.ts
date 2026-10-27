@@ -11,7 +11,7 @@ export const C = {
   inkSoft: 'rgba(11,26,29,0.72)',
   scrim: 'rgba(8,20,22,0.55)',
   line: 'rgba(243,235,221,0.16)',
-  textDim: 'rgba(243,235,221,0.68)',
+  textDim: 'rgba(243,235,221,0.8)',
   paper: '#EFE6D4',
   paperInk: '#2B2A24',
   paperDim: '#6B6555',

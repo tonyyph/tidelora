@@ -15,9 +15,9 @@ export function T({ children, style, kind = 'body', numberOfLines }: { children:
       : kind === 'title'
         ? { fontFamily: F.display, fontSize: size(19, large), color: C.ivory }
         : kind === 'label'
-          ? { fontFamily: F.sansBold, fontSize: size(12, large), color: C.textDim, letterSpacing: 0.6, textTransform: 'uppercase' }
+          ? { fontFamily: F.sansBold, fontSize: size(12.5, large), color: C.textDim, letterSpacing: 0.6, textTransform: 'uppercase' }
           : kind === 'caption'
-            ? { fontFamily: F.sans, fontSize: size(12.5, large), color: C.textDim }
+            ? { fontFamily: F.sans, fontSize: size(13.5, large), lineHeight: size(18, large), color: C.textDim }
             : kind === 'number'
               ? { fontFamily: F.sansBold, fontSize: size(15, large), color: C.ivory, fontVariant: ['tabular-nums'] }
               : { fontFamily: F.sans, fontSize: size(14.5, large), color: C.ivory, lineHeight: size(20, large) };
@@ -60,7 +60,7 @@ export function Button({ label, kind = 'ghost', style, small, icon, onPress, dis
       {...rest}
     >
       {icon}
-      <T style={[styles.btnText, kind === 'primary' && { color: C.ink }, small && { fontSize: 13 }]} numberOfLines={1}>
+      <T style={[styles.btnText, kind === 'primary' && { color: C.ink }, small && { fontSize: 14 }]} numberOfLines={1}>
         {label}
       </T>
     </Pressable>

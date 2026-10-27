@@ -42,7 +42,8 @@ simulator bằng chuột, để tránh click nhầm sang máy của bạn.
 - Quay video vòng chơi.
 
 ## Vấn đề đã biết
-- Đồng hồ trong game vẫn chạy nhưng ánh sáng giữ nguyên bình minh (slice dùng giờ cố định).
+- Ánh sáng theo giờ chỉ là lớp màu phủ lên tranh bình minh: mặt trời vẫn nằm sát chân trời cả buổi trưa và đêm.
+- Chưa có "ngủ đến sáng": chơi nhiều chuyến liền thì trời tối dần và đêm kéo dài tới 4:30.
 - Bóng cá khi đấu ở xa bên phải có thể ra khỏi khung; dây khi đó cũng đi ra ngoài màn hình.
 - Toàn bộ art và âm thanh là placeholder.
 - Nút tròn màu xanh trong các ảnh chụp là nút dev-menu của Expo Go, không thuộc game.
@@ -58,3 +59,29 @@ Verified: typecheck, lint, 44 tests. In the simulator the waiting HUD and the lo
 screenshot (loupe framing adjusted after that).
 Not yet seen running: the hook-window pulse, the fight panel, the trip summary, the home goal card
 and the coin animation. Someone else started using the simulator during the check, so I stopped driving it.
+
+## 2026-10-26: UI/UX pass (items 11–18)
+- Prep: presets, bait and depth come first as one-line chips; the rig is a list on the right with
+  "Đổi n/m" (cycle owned gear) or "Tiệm ›" (opens the shop on that slot). Place info moved below.
+- Shop: bait is its own tab, so nothing is cut off. Two cards per row. Non-equipped gear explains the
+  difference in words (`gear/compare.ts`), e.g. "Quăng xa hơn 8 m" and "Cứng hơn: cá giật mạnh dễ
+  đứt cước mảnh". A dot marks slots that still have gear to buy. Opens on a slot with `/shop?slot=`.
+- Stash: species filters on one scrolling row, larger fish art, the chest's total value, and "Chọn N con
+  kém tươi".
+- Kitchen: a cook-vs-sell box (dish value, spice cost, raw price) with a coloured verdict. A fade and
+  flashed scroll bar on long fish lists.
+- Text: captions 12.5 → 13.5 pt, labels 12 → 12.5 pt, dim text opacity 0.68 → 0.8, small buttons 14 pt.
+- Tutorial: "Bước n/5" on the coach line; the line stays up. A ghost fingertip shows the aim drag. A
+  "Bấm →" or "Giữ →" tag sits beside Giật, Thu dây and Vớt. During a fight the coach line moves to the
+  side away from the fight panel.
+- Transitions: 320 ms fade between screens, and the Skia scenes fade in.
+- Time of day: `timeOfDay.ts` grades the dawn painting by the game clock (dawn, morning, noon,
+  afternoon, dusk, night). The HUD and prep say "Ráng chiều · Lặng gió" and similar.
+
+Verified: typecheck, lint, 48 tests. Screenshots in the simulator: prep, shop (rod tab), stash,
+kitchen (verdict "Bán sống lời hơn 49 xu"), home at dusk, fishing at 18:10, 22:00 and 12:00, the
+tutorial aim step with the fingertip, the hook window with "Bấm →", and the fight with the moved coach
+line (frozen with `hold=`). Layout bugs found that way were fixed: truncated preset text, stacked shop
+cards, an overflowing stash panel, the coach overlapping the fight panel, and ▶ drawn as an emoji.
+Not seen: the screen fade (screenshots can't show motion), the shop bait tab, the stash "kém tươi"
+button (no fading fish in the test save), the kitchen fade on a long list, and left-handed mode.

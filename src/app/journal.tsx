@@ -14,7 +14,7 @@ import { formatWeight } from '../ui/format';
 import { T } from '../ui/primitives';
 import { ScreenFrame } from '../ui/Screen';
 import { C, F } from '../ui/theme';
-import { WoodSurface } from '../ui/WoodSurface';
+import { Backdrop } from '../ui/Backdrop';
 
 const CERT: Record<Certainty, string> = { verified: 'đã kiểm', approximate: 'ước lượng', unknown: 'chưa rõ' };
 
@@ -35,7 +35,7 @@ export default function Journal() {
   const known = !!entry;
 
   return (
-    <ScreenFrame title="Sổ tay thiên nhiên" subtitle={`${Object.keys(save.journal).length}/${SPECIES_IDS.length} loài ở ${BAU_SEN.nameVi}`} background={<WoodSurface tone="paper" />}>
+    <ScreenFrame title="Sổ tay thiên nhiên" subtitle={`${Object.keys(save.journal).length}/${SPECIES_IDS.length} loài ở ${BAU_SEN.nameVi}`} background={<Backdrop art="bg-storage-quiet" scrim="room" />}>
       <View style={styles.book}>
         <View style={styles.index}>
           {SPECIES_IDS.map((id) => {
@@ -50,11 +50,12 @@ export default function Journal() {
                 style={[styles.idx, sel === id && styles.idxOn]}
               >
                 <T style={[styles.idxName, !k && { color: C.paperDim }, sel === id && { color: C.paperInk }]}>{k ? SPECIES_BIO[id].nameVi : 'Chưa gặp'}</T>
-                {k && <T style={styles.idxSci}>{SPECIES_BIO[id].scientific}</T>}
+                {k && <T style={[styles.idxSci, sel !== id && { color: C.secondary }]}>{SPECIES_BIO[id].scientific}</T>}
               </Pressable>
             );
           })}
         </View>
+        <View style={styles.pageCol}>
         <ScrollView style={styles.page} contentContainerStyle={{ padding: 22, gap: 10 }}>
           {!known ? (
             <View style={{ gap: 10 }}>
@@ -116,6 +117,7 @@ export default function Journal() {
             </>
           )}
         </ScrollView>
+        </View>
       </View>
     </ScreenFrame>
   );
@@ -135,11 +137,13 @@ function Fact({ k, v, c }: { k: string; v: string; c?: Certainty }) {
 
 const styles = StyleSheet.create({
   book: { flex: 1, flexDirection: 'row' },
-  index: { width: 200, gap: 4, paddingRight: 10 },
-  idx: { padding: 10, borderRadius: 8, backgroundColor: 'rgba(239,230,212,0.08)' },
+  // Sidebar 25%, page 75%.
+  index: { flex: 25, minWidth: 0, gap: 4, paddingRight: 10 },
+  idx: { padding: 10, borderRadius: 10, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine },
   idxOn: { backgroundColor: C.paper },
   idxName: { fontFamily: F.display, fontSize: 16, color: C.ivory },
   idxSci: { fontFamily: F.displayItalic, fontSize: 12, color: C.paperDim },
+  pageCol: { flex: 75, minWidth: 0 },
   page: { flex: 1, backgroundColor: C.paper, borderRadius: 6 },
   h1: { fontFamily: F.display, fontSize: 28, lineHeight: 36, color: C.paperInk },
   h2: { fontFamily: F.display, fontSize: 17, color: C.paperInk, marginTop: 6 },

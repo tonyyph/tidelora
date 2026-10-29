@@ -1,16 +1,15 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInLeft } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { atHome } from '../inventory/catches';
-import { clockLabel, band } from '../preservation/freshness';
-import { nextGoal, nextTip } from '../progression/goals';
-import { LiveBackdrop } from '../rendering/scene/LiveBackdrop';
+import { band, clockLabel } from '../preservation/freshness';
+import { nextGoal } from '../progression/goals';
 import { useGame } from '../state/gameStore';
-import { Coin, T } from '../ui/primitives';
+import { Backdrop } from '../ui/Backdrop';
+import { BrassFill, Coin, Icon, type IconName, T } from '../ui/primitives';
 import { C, F } from '../ui/theme';
 
 /** The house on the marsh edge: every place the player can go between trips. */
@@ -24,87 +23,104 @@ export default function Home() {
   }, [pending]);
   if (!save) return null;
   const home = atHome(save);
-  const fading = home.filter((c) => band(c.freshness) === 'fading').length;
-  const species = Object.keys(save.journal).length;
+  const fading = home.some((c) => band(c.freshness) === 'fading');
   const goal = nextGoal(save);
-  const tip = nextTip(save);
 
-  const places: { label: string; note: string; to: string; primary?: boolean }[] = [
-    { label: 'Ra bàu câu', note: 'Chuẩn bị đồ và xuống Bàu Sen', to: '/prep', primary: true },
-    { label: 'Kho cá', note: home.length ? `${home.length} con trong thùng đá${fading ? ` · ${fading} con kém tươi` : ''}` : 'Thùng đá đang trống', to: '/stash' },
-    { label: 'Gian bếp', note: save.dishes.length ? `${save.dishes.length} mẻ món đã nấu` : `${save.recipesUnlocked.length} công thức`, to: '/kitchen' },
-    { label: 'Chợ & tiệm đồ câu', note: 'Bán cá, mua mồi và đồ nghề', to: '/shop' },
-    { label: 'Sổ tay thiên nhiên', note: `${species}/4 loài đã ghi`, to: '/journal' },
+  const places: { label: string; icon: IconName; to: string; badge?: string; warn?: boolean }[] = [
+    { label: 'Kho cá', icon: 'fish', to: '/stash', badge: home.length ? String(home.length) : undefined, warn: fading },
+    { label: 'Gian bếp', icon: 'pot-steam-outline', to: '/kitchen' },
+    { label: 'Tiệm đồ câu', icon: 'hook', to: '/shop' },
+    { label: 'Sổ tay', icon: 'book-open-variant', to: '/journal' },
   ];
 
   return (
     <View style={styles.root}>
-      <LiveBackdrop />
-      <LinearGradient colors={['rgba(8,20,22,0.82)', 'rgba(8,20,22,0.55)', 'rgba(8,20,22,0)']} locations={[0, 0.45, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.shade} pointerEvents="none" />
-      <Animated.View entering={FadeIn.duration(500)} style={[styles.panel, { paddingLeft: insets.left + 28, paddingTop: insets.top + 22, paddingBottom: insets.bottom + 18 }]}>
-        <T kind="label">Nhà ven bàu · Đồng Tháp Mười</T>
-        <T style={styles.title}>Ngày {save.day}, {clockLabel(save.minute)}</T>
-        <View style={{ marginTop: 4, marginBottom: 8 }}>
-          <Coin value={save.money} />
-        </View>
-        {places.map((p, i) => (
-          <Animated.View key={p.to} entering={FadeInLeft.delay(80 * i).duration(380)}>
-            <Pressable accessibilityRole="button" accessibilityLabel={p.label} onPress={() => router.push(p.to as never)} style={({ pressed }) => [styles.place, pressed && { opacity: 0.7 }]}>
-              <View style={[styles.mark, p.primary && { backgroundColor: C.brass }]} />
-              <View style={{ flex: 1 }}>
-                <T style={[styles.placeLabel, p.primary && { color: C.ivory }]}>{p.label}</T>
-                <T kind="caption">{p.note}</T>
-              </View>
-            </Pressable>
-          </Animated.View>
-        ))}
-        <View style={{ flex: 1 }} />
-        <View style={{ flexDirection: 'row', gap: 18 }}>
-          <Pressable onPress={() => router.push('/settings')} hitSlop={8}>
-            <T kind="caption">Cài đặt</T>
+      <Backdrop art="bg-home-morning" scrim="left" minute={save.minute} />
+
+      <Animated.View entering={FadeIn.duration(600)} style={[styles.head, { left: insets.left + 28, top: insets.top + 16 }]}>
+        <T style={styles.logo}>Tidelora</T>
+        <View style={styles.swash} />
+        <T style={styles.headline}>{'Một ngày\nbên mặt nước'}</T>
+        <T style={styles.where}>
+          Đồng Tháp Mười · {clockLabel(save.minute)} · Ngày {save.day}
+        </T>
+        {goal && (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Mục tiêu: ${goal.name}`} onPress={() => router.push('/shop')} style={styles.goal}>
+            <View style={styles.goalHead}>
+              <T kind="caption" style={{ color: C.ivory }} numberOfLines={1}>
+                Mục tiêu · {goal.name}
+              </T>
+              <T kind="caption" style={{ color: goal.ready ? C.brassHi : C.secondary }}>
+                {goal.ready ? 'Đủ tiền' : `${goal.have}/${goal.price} xu`}
+              </T>
+            </View>
+            <View style={styles.bar}>
+              <View style={[styles.barFill, { width: `${Math.min(100, Math.round((goal.have / goal.price) * 100))}%` }]} />
+            </View>
           </Pressable>
-          <Pressable onPress={() => router.replace('/')} hitSlop={8}>
-            <T kind="caption">Màn mở đầu</T>
-          </Pressable>
-        </View>
+        )}
       </Animated.View>
 
-      {(goal || tip) && (
-        <Animated.View entering={FadeIn.delay(300).duration(500)} style={[styles.goalCard, { right: insets.right + 24, bottom: insets.bottom + 20 }]}>
-          {goal && (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Mục tiêu: ${goal.name}`} onPress={() => router.push('/shop')} style={{ gap: 6 }}>
-              <View style={styles.goalHead}>
-                <T kind="label">Mục tiêu tiếp theo</T>
-                <T kind="number" style={{ color: goal.ready ? C.brass : C.ivory }}>
-                  {Math.min(goal.have, goal.price)}/{goal.price} xu
-                </T>
-              </View>
-              <T style={styles.goalName}>{goal.name}</T>
-              <View style={styles.bar}>
-                <View style={[styles.barFill, { width: `${Math.min(100, Math.round((goal.have / goal.price) * 100))}%` }, goal.ready && { backgroundColor: C.brass }]} />
-              </View>
-              <T kind="caption">{goal.ready ? 'Đủ tiền rồi! Chạm để ghé tiệm.' : goal.why}</T>
-            </Pressable>
-          )}
-          {tip && <T kind="caption" style={[{ color: C.ivory }, goal && styles.tip]}>{tip}</T>}
-        </Animated.View>
-      )}
+      <View style={[styles.topRight, { right: insets.right + 20, top: insets.top + 14 }]}>
+        <Coin value={save.money} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Cài đặt" onPress={() => router.push('/settings')} hitSlop={6} style={styles.round}>
+          <Icon name="cog-outline" size={20} />
+        </Pressable>
+      </View>
+
+      <Animated.View entering={FadeInDown.delay(150).duration(450)} style={[styles.nav, { left: insets.left + 20, bottom: insets.bottom + 16 }]}>
+        {places.map((p, i) => (
+          <Pressable
+            key={p.to}
+            accessibilityRole="button"
+            accessibilityLabel={p.badge ? `${p.label}, ${p.badge} con` : p.label}
+            onPress={() => router.push(p.to as never)}
+            style={({ pressed }) => [styles.navItem, i > 0 && styles.navDivider, pressed && { opacity: 0.65 }]}
+          >
+            <View>
+              <Icon name={p.icon} size={28} color={C.ivory} />
+              {p.badge && (
+                <View style={[styles.badge, p.warn && { backgroundColor: C.warn }]}>
+                  <T style={styles.badgeText}>{p.badge}</T>
+                </View>
+              )}
+            </View>
+            <T style={styles.navLabel} numberOfLines={1}>{p.label}</T>
+          </Pressable>
+        ))}
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(250).duration(450)} style={[styles.ctaWrap, { right: insets.right + 24, bottom: insets.bottom + 22 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Ra bàu câu" onPress={() => router.push('/prep')} style={({ pressed }) => [styles.cta, pressed && { transform: [{ scale: 0.98 }] }]}>
+          <BrassFill radius={30} />
+          <T style={styles.ctaText}>Ra bàu câu</T>
+          <Icon name="arrow-right" size={24} color={C.ink} />
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ink },
-  shade: { position: 'absolute', left: 0, top: 0, bottom: 0, width: '62%' },
-  panel: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 420, paddingRight: 24 },
-  title: { fontFamily: F.display, fontSize: 26, lineHeight: 34, color: C.ivory, marginTop: 2 },
-  place: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 5 },
-  mark: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(243,235,221,0.5)' },
-  goalCard: { position: 'absolute', width: 300, padding: 14, gap: 4, borderRadius: 14, backgroundColor: 'rgba(8,20,22,0.78)', borderWidth: StyleSheet.hairlineWidth, borderColor: C.line },
-  goalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  goalName: { fontFamily: F.display, fontSize: 18, lineHeight: 24, color: C.ivory },
-  bar: { height: 6, borderRadius: 3, backgroundColor: 'rgba(243,235,221,0.15)', overflow: 'hidden' },
-  barFill: { height: 6, borderRadius: 3, backgroundColor: C.mist },
-  tip: { marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line },
-  placeLabel: { fontFamily: F.display, fontSize: 19, lineHeight: 25, color: C.ivory },
+  head: { position: 'absolute', maxWidth: 360 },
+  logo: { fontFamily: F.display, fontSize: 30, lineHeight: 38, color: C.ivory, letterSpacing: 0.4, textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 8 },
+  swash: { width: 92, height: 2, borderRadius: 1, backgroundColor: C.ivory, opacity: 0.7, marginLeft: 22, marginTop: -2, marginBottom: 14 },
+  headline: { fontFamily: F.display, fontSize: 34, lineHeight: 40, color: C.ivory, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 10 },
+  where: { fontFamily: F.sansMedium, fontSize: 15, color: C.ivory, marginTop: 6, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6 },
+  goal: { marginTop: 12, width: 260, gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: 'rgba(14,34,30,0.62)', borderWidth: 1, borderColor: C.panelLine },
+  goalHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  bar: { height: 4, borderRadius: 2, backgroundColor: 'rgba(243,235,221,0.16)', overflow: 'hidden' },
+  barFill: { height: 4, borderRadius: 2, backgroundColor: C.brass },
+  topRight: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 10 },
+  round: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(14,34,30,0.72)', borderWidth: 1, borderColor: C.panelLine },
+  nav: { position: 'absolute', flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 6, borderRadius: 20, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine },
+  navItem: { minWidth: 92, alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 2 },
+  navDivider: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: 'rgba(196,198,175,0.35)' },
+  navLabel: { fontFamily: F.sansMedium, fontSize: 13.5, color: C.ivory },
+  badge: { position: 'absolute', right: -12, top: -6, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: C.brass, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontFamily: F.sansBold, fontSize: 11, lineHeight: 14, color: C.ink },
+  ctaWrap: { position: 'absolute' },
+  cta: { height: 60, minWidth: 230, paddingHorizontal: 30, borderRadius: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#EAD3A0', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  ctaText: { fontFamily: F.display, fontSize: 22, lineHeight: 28, color: C.ink },
 });

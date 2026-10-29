@@ -65,6 +65,9 @@ export function CatchResult({ pending, save, onKeep, onRelease }: { pending: Pen
         <View style={{ position: 'absolute', left: 0, bottom: (boardH - fishH) / 2 - 6 }}>
           <FishArt speciesId={pending.speciesId} width={fishW} />
         </View>
+        {/* The measured length, from the catch data, on the same scale as the ruler and the fish. */}
+        <View style={[styles.mark, { left: Math.min(fishW, boardW - 1) }]} />
+        <T style={[styles.markNum, { left: Math.min(fishW, boardW - 40) - 20 }]}>{pending.lengthCm.toLocaleString('vi-VN')} cm</T>
       </Animated.View>
 
       <View style={styles.footer}>
@@ -108,6 +111,8 @@ const styles = StyleSheet.create({
   grain: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 6, backgroundColor: 'rgba(40,25,10,0.18)', borderTopWidth: 6, borderTopColor: 'rgba(255,240,210,0.08)' },
   ruler: { position: 'absolute', left: 0, right: 0, top: 0, height: 26 },
   tick: { position: 'absolute', top: 0, width: 1, backgroundColor: 'rgba(243,235,221,0.6)' },
+  mark: { position: 'absolute', top: 0, bottom: 0, width: 2, marginLeft: -1, backgroundColor: C.brassHi, opacity: 0.85 },
+  markNum: { position: 'absolute', bottom: 6, width: 60, textAlign: 'center', fontSize: 11, color: C.ink, backgroundColor: C.brassHi, borderRadius: 6, overflow: 'hidden', fontFamily: F.sansBold },
   tickNum: { position: 'absolute', top: 12, width: 16, textAlign: 'center', fontSize: 9, color: 'rgba(243,235,221,0.7)', fontFamily: F.sansMedium },
   footer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%', maxWidth: 820, gap: 20 },
   stats: { flexDirection: 'row', gap: 22, flexShrink: 1 },

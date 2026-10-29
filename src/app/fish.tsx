@@ -1,6 +1,7 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AppState, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withRepeat, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,9 +13,10 @@ import type { BaitId } from '../ecology/types';
 import { baitAvailable } from '../economy/market';
 import { FishingRuntime } from '../fishing/runtime';
 import { aimTarget, createSession, dragKgf, FAIL_PHASES, type GameEvent, type Phase } from '../fishing/session';
-import { resolveLoadout } from '../gear/catalog';
+import { BAITS, resolveLoadout } from '../gear/catalog';
 import { inCooler } from '../inventory/catches';
 import { clockLabel } from '../preservation/freshness';
+import { ART } from '../rendering/art';
 import { makeView, unproject } from '../rendering/projection';
 import { BauSenScene } from '../rendering/scene/BauSenScene';
 import { conditionsLabel } from '../rendering/scene/timeOfDay';
@@ -29,10 +31,11 @@ import { DebugOverlay } from '../ui/fishing/DebugOverlay';
 import { TackleSheet } from '../ui/fishing/TackleSheet';
 import { TensionGauge } from '../ui/fishing/TensionGauge';
 import { formatDepth } from '../ui/format';
-import { Button, Panel, T } from '../ui/primitives';
+import { BrassFill, Button, Icon, type IconName, Panel, T } from '../ui/primitives';
 import { C, F } from '../ui/theme';
 
 const QUIET: Phase[] = ['waiting', 'investigating', 'nibbling'];
+const BAIT_ICON: Record<BaitId, IconName> = { worm: 'grain', bran: 'grain', shrimp: 'fishbowl-outline' };
 const STRIKE: Phase[] = ['waiting', 'investigating', 'nibbling', 'hookWindow'];
 
 export default function FishScreen() {
@@ -154,7 +157,14 @@ export default function FishScreen() {
 
   useEffect(() => {
     runtime.setListeners({ onPhase: setPhase, onEvents });
-    if (__DEV__) devRegistry.runtime = runtime;
+    if (__DEV__) {
+      devRegistry.runtime = runtime;
+      devRegistry.openTackle = () => setTackleOpen(true);
+      devRegistry.pause = () => {
+        runtime.pause();
+        setPaused(true);
+      };
+    }
     runtime.start();
     setLoop('amb', 1);
     // Reel and drag loops follow the fight; a light poll, not a per-frame React update.
@@ -286,23 +296,20 @@ export default function FishScreen() {
     <View style={styles.root}>
       <GestureDetector gesture={pan}>
         <Animated.View entering={FadeIn.duration(450)} style={StyleSheet.absoluteFill}>
-          <BauSenScene width={width} height={height} frame={frame} quality={settings.quality} reducedMotion={settings.reducedMotion} loupe={loupe} minute={save.minute} />
+          <BauSenScene width={width} height={height} frame={frame} quality={settings.quality} reducedMotion={settings.reducedMotion} loupe={loupe} minute={save.minute} rod={save.loadout.rod === 'rod-carbon' ? 'carbon' : 'bamboo'} float={save.loadout.float === 'float-balsa' ? 'balsa' : 'quill'} />
         </Animated.View>
       </GestureDetector>
 
+      {/* A soft shade under the top HUD so it reads on a bright sky. */}
+      <LinearGradient colors={['rgba(8,20,18,0.5)', 'rgba(8,20,18,0)']} style={styles.topShade} pointerEvents="none" />
       <Animated.View style={[StyleSheet.absoluteFill, hudStyle]} pointerEvents="box-none">
         {/* Top-left: place and time */}
-        <View style={[styles.topLeft, { left: insets.left + 20, top: insets.top + 14 }]} pointerEvents="none">
+        <View style={[styles.topLeft, { left: insets.left + 20, top: insets.top + 10 }]} pointerEvents="none">
           <T style={styles.place}>{BAU_SEN.nameVi}</T>
-          <T kind="caption">
-            {clockLabel(save.minute)} · Ngày {save.day}
+          <T style={styles.when}>
+            {clockLabel(save.minute)} · {conditionsLabel(save.minute, BAU_SEN.weather.nameVi)}
           </T>
-        </View>
-        {/* Top centre: conditions */}
-        <View style={[styles.topCenter, { top: insets.top + 16 }]} pointerEvents="none">
-          <T kind="caption" style={styles.cond}>
-            {conditionsLabel(save.minute, BAU_SEN.weather.nameVi)} · Nước {BAU_SEN.waterTempC.value}°C{aimSpot && phase === 'aiming' ? `  ·  ${aimSpot}` : ''}
-          </T>
+          {aimSpot && phase === 'aiming' && <T style={styles.spot}>Đang ngắm: {aimSpot}</T>}
         </View>
         {/* Top-right: pause */}
         <Pressable
@@ -313,8 +320,7 @@ export default function FishScreen() {
           }}
           style={[styles.pause, { right: insets.right + 16, top: insets.top + 10 }]}
         >
-          <View style={styles.pauseBar} />
-          <View style={styles.pauseBar} />
+          <Icon name="pause" size={24} />
         </Pressable>
 
         {/* Bottom-left (or right for left-handed): tackle */}
@@ -325,16 +331,15 @@ export default function FishScreen() {
             </Animated.View>
           )}
           <View style={styles.sideRow}>
-            <Button
-              small
-              label={`Hộp đồ · ${save.bait === 'worm' ? 'Trùn' : save.bait === 'bran' ? 'Cám' : 'Tép'} · ${formatDepth(save.baitDepthM)}`}
-              onPress={() => setTackleOpen(true)}
-            />
-            <View style={[styles.basket, basketFull && styles.basketFull]} accessibilityLabel={`Giỏ cá ${cooler} trên ${capacity}`}>
-              <View style={styles.basketIcon}>
-                <View style={[styles.basketFill, { height: `${Math.round((cooler / capacity) * 100)}%` }, basketFull && { backgroundColor: C.warn }]} />
-              </View>
-              <T kind="number" style={{ fontSize: 14 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Hộp đồ: ${BAITS[save.bait].nameVi}, ${formatDepth(save.baitDepthM)}`} onPress={() => setTackleOpen(true)} style={({ pressed }) => [styles.pill, pressed && { opacity: 0.7 }]}>
+              {save.bait === 'worm' ? <Image source={ART['item-earthworm']} style={styles.pillArt} resizeMode="contain" /> : <Icon name={BAIT_ICON[save.bait]} size={22} color={C.brassHi} />}
+              <T style={styles.pillText}>
+                {BAITS[save.bait].nameVi} · {formatDepth(save.baitDepthM)}
+              </T>
+            </Pressable>
+            <View style={[styles.pill, basketFull && styles.basketFull]} accessibilityLabel={`Giỏ cá ${cooler} trên ${capacity}`}>
+              <Image source={ART[save.loadout.cooler === 'cooler-ice' ? 'item-cooler' : 'item-basket']} style={styles.pillArt} resizeMode="contain" />
+              <T kind="number" style={styles.pillText}>
                 {basketFull ? 'Giỏ đầy' : `${cooler}/${capacity}`}
               </T>
             </View>
@@ -350,7 +355,7 @@ export default function FishScreen() {
               <Pressable accessibilityRole="button" accessibilityLabel="Nới drag" onPress={() => setDrag(dragLevel - 0.1)} style={styles.dragBtn} hitSlop={4}>
                 <T style={styles.dragSign}>−</T>
               </Pressable>
-              <T kind="number" style={{ minWidth: 70, textAlign: 'center' }}>
+              <T kind="number" style={{ minWidth: 58, textAlign: 'center' }}>
                 {(dragLevel * runtime.session.config.loadout.reel.dragMaxKgf).toFixed(1)} kgf
               </T>
               <Pressable accessibilityRole="button" accessibilityLabel="Siết drag" onPress={() => setDrag(dragLevel + 0.1)} style={styles.dragBtn} hitSlop={4}>
@@ -363,6 +368,7 @@ export default function FishScreen() {
             {QUIET.includes(phase) && <Button small label="Thu cần" onPress={() => runtime.input({ type: 'retrieve' })} />}
             {STRIKE.includes(phase) && (
               <Pressable accessibilityRole="button" accessibilityLabel="Giật cần" onPressIn={() => runtime.input({ type: 'strike' })} style={[styles.big, styles.bigStrike, strikeHot && styles.bigHot]}>
+                {strikeHot && <BrassFill radius={BIG / 2} />}
                 <PulseRing active={strikeHot} reducedMotion={settings.reducedMotion} />
                 <T style={[styles.bigText, strikeHot && { color: C.ink }]}>{strikeHot ? 'Giật!' : 'Giật'}</T>
               </Pressable>
@@ -373,14 +379,16 @@ export default function FishScreen() {
                 accessibilityLabel="Giữ để thu dây"
                 onPressIn={() => runtime.input({ type: 'reel', on: true })}
                 onPressOut={() => runtime.input({ type: 'reel', on: false })}
-                style={({ pressed }) => [styles.big, pressed && styles.bigPressed]}
+                style={({ pressed }) => [styles.big, styles.bigHot, pressed && styles.bigPressed]}
               >
-                <T style={styles.bigText}>Thu dây</T>
-                <T kind="caption">giữ</T>
+                <BrassFill radius={BIG / 2} />
+                <T style={[styles.bigText, { color: C.ink }]}>Thu dây</T>
+                <T kind="caption" style={{ color: 'rgba(11,26,29,0.7)' }}>giữ</T>
               </Pressable>
             )}
             {phase === 'landing' && (
               <Pressable accessibilityRole="button" accessibilityLabel="Vớt cá" onPress={() => runtime.input({ type: 'net' })} style={[styles.big, styles.bigHot]}>
+                <BrassFill radius={BIG / 2} />
                 <PulseRing active reducedMotion={settings.reducedMotion} />
                 <T style={[styles.bigText, { color: C.ink }]}>Vớt</T>
               </Pressable>
@@ -393,7 +401,7 @@ export default function FishScreen() {
             key={phase}
             text={coach}
             step={tutorial ? coachStep(phase) : null}
-            top={insets.top + 50}
+            top={insets.top + 84}
             // Mid-fight the panel sits by the thumb, so the line moves to the other side.
             side={fighting ? (left ? { right: insets.right + 20 } : { left: insets.left + 20 }) : null}
             sticky={tutorial || phase === 'hookWindow' || phase === 'landing'}
@@ -423,7 +431,8 @@ export default function FishScreen() {
 
       {save.pendingCatch && <CatchResult pending={save.pendingCatch} save={save} onKeep={onKeep} onRelease={onRelease} />}
 
-      {tackleOpen && <TackleSheet save={save} canChange={phase === 'aiming'} onBait={changeBait} onDepth={changeDepth} onClose={() => setTackleOpen(false)} />}
+      {/* Pause owns the screen: the tackle sheet steps aside and comes back on resume. */}
+      {tackleOpen && !paused && <TackleSheet save={save} canChange={phase === 'aiming'} onBait={changeBait} onDepth={changeDepth} onClose={() => setTackleOpen(false)} />}
 
       {paused && (
         <Animated.View entering={FadeIn.duration(200)} style={styles.pauseScrim}>
@@ -571,37 +580,40 @@ function FightPanel({ frame, info, landing, reducedMotion }: { frame: SharedValu
   );
 }
 
+/** Thumb controls: big enough to find without looking, small enough to leave the float in view. */
+const BIG = 84;
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ink },
   topLeft: { position: 'absolute' },
-  place: { fontFamily: F.display, fontSize: 20, lineHeight: 26, color: C.ivory, textShadowColor: 'rgba(0,0,0,0.4)', textShadowRadius: 4 },
-  topCenter: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  cond: { color: C.ivory, backgroundColor: 'rgba(11,26,29,0.35)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
-  pause: { position: 'absolute', width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(11,26,29,0.4)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
-  pauseBar: { width: 4, height: 15, borderRadius: 2, backgroundColor: C.ivory },
+  topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: 130 },
+  place: { fontFamily: F.display, fontSize: 30, lineHeight: 38, color: C.ivory, textShadowColor: 'rgba(0,0,0,0.55)', textShadowRadius: 8 },
+  when: { fontFamily: F.sansMedium, fontSize: 14.5, color: C.ivory, textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 6 },
+  spot: { fontFamily: F.sansMedium, fontSize: 13.5, color: C.brassHi, marginTop: 2, textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 6 },
+  pause: { position: 'absolute', width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(14,34,30,0.72)', borderWidth: 1, borderColor: C.panelLine, alignItems: 'center', justifyContent: 'center' },
   bottomSide: { position: 'absolute', gap: 8, alignItems: 'flex-start' },
   sideRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  basket: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, minHeight: 36, borderRadius: 10, backgroundColor: 'rgba(11,26,29,0.5)', borderWidth: 1, borderColor: 'rgba(243,235,221,0.25)' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 10, paddingRight: 16, height: 48, borderRadius: 14, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine },
+  pillArt: { width: 34, height: 30 },
+  pillText: { fontFamily: F.sansMedium, fontSize: 15, color: C.ivory },
   basketFull: { borderColor: C.warn },
-  basketIcon: { width: 16, height: 18, borderWidth: 1.5, borderColor: C.ivory, borderTopWidth: 0, borderBottomLeftRadius: 5, borderBottomRightRadius: 5, justifyContent: 'flex-end', overflow: 'hidden' },
-  basketFill: { width: '100%', backgroundColor: C.brass },
   actions: { position: 'absolute', alignItems: 'flex-end', gap: 12 },
-  dragRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dragBtn: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.5)', backgroundColor: 'rgba(11,26,29,0.55)', alignItems: 'center', justifyContent: 'center' },
+  dragRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 12, paddingRight: 4, paddingVertical: 4, borderRadius: 30, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine },
+  dragBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.45)', backgroundColor: 'rgba(14,34,30,0.6)', alignItems: 'center', justifyContent: 'center' },
   dragSign: { fontFamily: F.sansBold, fontSize: 22, lineHeight: 26, color: C.ivory },
-  fightPanel: { width: 260, gap: 6, padding: 12, borderRadius: 14, backgroundColor: 'rgba(8,20,22,0.62)' },
+  fightPanel: { width: 210, gap: 6, padding: 12, borderRadius: 16, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine },
   fightRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   staminaTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: 'rgba(243,235,221,0.14)', overflow: 'hidden' },
   staminaFill: { height: 8, borderRadius: 4, backgroundColor: C.fresh },
   heading: { width: 18, textAlign: 'center', color: C.ivory, fontSize: 14 },
   fightHint: { color: C.ivory, backgroundColor: 'rgba(243,235,221,0.1)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, overflow: 'hidden' },
-  pulse: { position: 'absolute', left: -3, top: -3, right: -3, bottom: -3, borderRadius: 60, borderWidth: 3, borderColor: '#E9CF95' },
+  pulse: { position: 'absolute', left: -3, top: -3, right: -3, bottom: -3, borderRadius: BIG / 2 + 4, borderWidth: 3, borderColor: '#E9CF95' },
   mainRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  big: { width: 104, height: 104, borderRadius: 52, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.55)', backgroundColor: 'rgba(11,26,29,0.5)', alignItems: 'center', justifyContent: 'center' },
-  bigStrike: { backgroundColor: 'rgba(11,26,29,0.68)', borderWidth: 2, borderColor: 'rgba(243,235,221,0.75)' },
-  bigHot: { borderColor: '#E9CF95', borderWidth: 3, backgroundColor: C.brass },
-  bigPressed: { backgroundColor: 'rgba(243,235,221,0.22)', transform: [{ scale: 0.97 }] },
-  bigText: { fontFamily: F.sansBold, fontSize: 18, color: C.ivory },
+  big: { width: BIG, height: BIG, borderRadius: BIG / 2, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.55)', backgroundColor: 'rgba(14,34,30,0.6)', alignItems: 'center', justifyContent: 'center' },
+  bigStrike: { backgroundColor: 'rgba(14,34,30,0.74)', borderWidth: 2, borderColor: 'rgba(243,235,221,0.75)' },
+  bigHot: { borderColor: '#F0DCA8', borderWidth: 3, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  bigPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
+  bigText: { fontFamily: F.display, fontSize: 18, lineHeight: 23, color: C.ivory },
   coach: { position: 'absolute', alignSelf: 'center', maxWidth: 420 },
   coachStep: { fontFamily: F.sansBold, fontSize: 12.5, color: C.brass },
   pointer: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(11,26,29,0.7)' },

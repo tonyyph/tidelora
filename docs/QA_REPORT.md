@@ -85,3 +85,54 @@ line (frozen with `hold=`). Layout bugs found that way were fixed: truncated pre
 cards, an overflowing stash panel, the coach overlapping the fight panel, and ▶ drawn as an emoji.
 Not seen: the screen fade (screenshots can't show motion), the shop bait tab, the stash "kém tươi"
 button (no fading fish in the test save), the kitchen fade on a long list, and left-handed mode.
+
+## 2026-10-27: Thay hình theo asset pack v1 và concept
+Mọi hình vẽ bằng code (nền, cá, món ăn, mặt gỗ) đã được thay bằng ảnh trong `art/source/v1`,
+build bằng `pnpm art`. Bố cục màn Nhà, Câu, Kho cá và Gian bếp làm lại theo ảnh concept.
+
+**Đã xem trên simulator** (iPhone 16 Pro, Expo Go): đủ 32 màn và trạng thái. Gồm màn mở đầu, Nhà
+(sáng và hoàng hôn), hướng dẫn, chuẩn bị, tiệm (3 tab), kho cá, bếp, sổ tay, cài đặt, hộp đồ, tạm
+dừng, và màn câu ở mọi pha (ngắm, chờ, giật, đấu, vớt, kết quả, giữ cá) vào 8h, 12h, 18h35 và 22h.
+Có cả bố cục tay trái.
+
+**Chưa thấy:** chuyển động của shader nước mới (ảnh chụp chỉ cho thấy khung tĩnh), hơi nóng bốc
+lên ở bếp, hiệu năng trên máy thật, viền sprite ở độ phân giải máy thật, Android.
+
+**Đã biết:**
+- Tranh là cảnh buổi sáng: lúc 22h trời tối đi nhưng mặt trời trong tranh vẫn còn.
+- Không có tay người hay máy câu như trong concept. Cần câu vẽ bằng code để cong được theo lực.
+- Điểm "Gốc tràm ngập" không có cây tràm đứng trong nước trên tranh.
+
+## 2026-10-28: tích hợp asset v3
+
+**Nguồn:** `Tidelora-V3.zip` cùng `CLAUDE_IMPLEMENTATION.md`. File ZIP nhận được bị cụt: `catch-mat.png` hỏng, thiếu
+`docs/` (REVIEW_V2, LAYOUT_V3, ASSET_INTEGRATION, SCREEN_CHECKLIST), `scripts/`, `integration/`,
+`reference/v3-layout-target.png` và `manifest.json`. Vì vậy không chạy được `install-assets.mjs` hay
+`verify-assets.mjs`, và tỉ lệ bố cục lấy theo phần mô tả trong CLAUDE_IMPLEMENTATION.md.
+
+**Đã làm:**
+- Màn câu: chuyển và hòa giữa bốn tranh hồ theo giờ trong game. Lấp lánh dọc đường nắng hoặc đường trăng.
+- Cần: cần carbon dùng tranh tay cầm + máy, thân cần vẽ nối tại đầu khớp; cần tre vẽ bằng code, không có máy.
+- Phao: phao balsa dùng tranh, cắt ở mực nước.
+- HUD: nút thao tác 84 dp, cột đấu cá 210 dp.
+- Tạm nghỉ đè lên hộp đồ: hộp đồ ẩn khi đang tạm nghỉ, hiện lại khi câu tiếp.
+- Tiệm: chia 3 cột 20/45/35, có ảnh sản phẩm đúng SKU.
+- Kho: lưới 55%, chi tiết 45%, cá chiếm khoảng 78% vùng ảnh.
+- Bếp: 21/45/34, nhưng danh sách tối thiểu 150 dp và cột chi tiết tối thiểu 272 dp; lời khuyên "bán sống lời hơn" không còn tô màu cảnh báo.
+- Sổ tay: chia 25/75.
+- Chuẩn bị: nút "Xuống bàu" ghim dưới danh sách đồ nghề.
+- Cài đặt: mỗi dãy chỉ sáng một mức, có `accessibilityRole="radio"`.
+- Về nhà: thanh tiến độ được kẹp trong 0–1.
+- Bắt cá: vạch chiều dài lấy từ dữ liệu.
+- Panel gần như đặc (0,93); nút cao 48 dp.
+
+**Đã chạy:** `pnpm verify` (tsc, lint, 48 test qua, 1 bỏ qua). Đã chụp lại đủ 32 trạng thái trên iPhone 16 Pro
+(iOS 18.1, ngang, có Dynamic Island). Ảnh 06 nay là màn nhà thật. Sau khi sửa, chụp lại sổ tay, bếp,
+kho, cảnh đấu cá và tạm nghỉ.
+
+**Chưa kiểm:**
+- Viewport hẹp (iPhone SE) và rộng (Pro Max, iPad).
+- Chữ lớn ở mọi màn.
+- Chuyển cảnh hòa liên tục khi giờ đổi lúc đang câu: chỉ xem ảnh tĩnh lúc 16:30.
+- Bộ nhớ khi hòa hai ảnh nền trên máy thật, và Android.
+- Bấm mua, nấu, giữ cá hai lần liên tiếp: chỉ có test logic, chưa thử tay.

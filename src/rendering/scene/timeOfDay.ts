@@ -1,7 +1,7 @@
 /**
- * Light over Bàu Sen by game clock. The backdrop is painted at dawn; the scene
- * grades it with a multiply tint (colour and darkness) and a soft-light lift
- * (midday glare), so the sky follows the clock without repainting.
+ * Light by game clock for scenes painted only at dawn (the house): a multiply tint
+ * (colour and darkness) and a soft-light lift (midday glare), so the sky follows the
+ * clock without repainting. The lake has a painting per time of day instead (`lakeLight`).
  */
 export type TimeGrade = { tint: string; lift: number; label: string };
 

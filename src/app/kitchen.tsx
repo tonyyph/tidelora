@@ -1,7 +1,7 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, type ScrollViewInstance, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeIn, runOnJS, useAnimatedStyle, useFrameCallback, useSharedValue } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { play, setLoop } from '../audio/sound';
 import { autoPick, candidates, checkCook, COOK_ERROR_VI } from '../cooking/cook';
@@ -10,13 +10,14 @@ import { SPECIES_BIO } from '../ecology/species';
 import { catchPrice, dishPrice } from '../economy/market';
 import type { DishLot } from '../persistence/schema';
 import { BAND_LABEL, band } from '../preservation/freshness';
+import { ART, DISH_ART } from '../rendering/art';
 import { DishArt } from '../rendering/dish/DishArt';
 import { useGame } from '../state/gameStore';
 import { formatWeight } from '../ui/format';
-import { Button, Divider, Panel, T } from '../ui/primitives';
+import { Backdrop } from '../ui/Backdrop';
+import { Button, Icon, T } from '../ui/primitives';
 import { ScreenFrame } from '../ui/Screen';
 import { C, F } from '../ui/theme';
-import { WoodSurface } from '../ui/WoodSurface';
 
 /**
  * Kitchen: pick a recipe, pick compatible fish, cook. The first time a recipe is
@@ -33,6 +34,15 @@ export default function Kitchen() {
   });
   const [cooking, setCooking] = useState(false);
   const [done, setDone] = useState<DishLot | null>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  const [stageW, setStageW] = useState(0);
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  // Recipes 21%, dish 45%, details 34% of the body after gaps; on narrow phones the list and
+  // details keep a readable minimum and the dish gives way.
+  const bodyW = width - insets.left - insets.right - 40 - 28;
+  const listW = Math.max(150, Math.round(bodyW * 0.21));
+  const sideW = Math.max(272, Math.round(bodyW * 0.34));
   const listRef = useRef<ScrollViewInstance>(null);
 
   const recipe = RECIPES[recipeId];
@@ -83,97 +93,120 @@ export default function Kitchen() {
     }
   };
 
+  const pickedKg = picked.reduce((sum, id) => sum + (save.catches.find((x) => x.id === id)?.weightKg ?? 0), 0);
+  const fishOk = unlocked && pickedKg >= recipe.minKg;
+  const pantryOk = save.pantry >= recipe.pantry;
+
   return (
-    <ScreenFrame title="Gian bếp" subtitle="Bếp củi, nồi đất, chạn gia vị" background={<WoodSurface tone="kitchen" />}>
+    <ScreenFrame title="Gian bếp" background={<Backdrop art="bg-kitchen-interior" scrim="top" />}>
       <View style={styles.cols}>
-        <View style={styles.list}>
+        <View style={[styles.list, { width: listW }]}>
           {Object.values(RECIPES).map((r) => {
             const on = r.id === recipeId;
             const open = save.recipesUnlocked.includes(r.id);
             return (
-              <Pressable key={r.id} onPress={() => chooseRecipe(r.id)} style={[styles.recipe, on && styles.recipeOn]}>
-                <T style={[styles.recipeName, !open && { color: C.textDim }]}>{open ? r.nameVi : 'Công thức chưa mở'}</T>
-                <T kind="caption" numberOfLines={2}>{open ? r.substitutes : DISH_UNLOCK_HINT[r.unlock]}</T>
+              <Pressable key={r.id} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => chooseRecipe(r.id)} style={[styles.recipe, on && styles.recipeOn]}>
+                <View style={styles.thumb}>
+                  <Image source={ART[DISH_ART[r.dish]]} style={[styles.thumbArt, !open && { opacity: 0.35 }]} resizeMode="contain" />
+                  {!open && <Icon name="lock-outline" size={20} />}
+                </View>
+                <T style={[styles.recipeName, !open && { color: C.textDim }]} numberOfLines={3}>
+                  {open ? r.nameVi : 'Chưa mở'}
+                </T>
               </Pressable>
             );
           })}
-          <Divider />
-          <T kind="caption">Gia vị trong chạn: {save.pantry} phần</T>
-          <Button small label={`Mua gia vị · ${PANTRY_PRICE} xu`} disabled={save.money < PANTRY_PRICE} onPress={() => g().buyPantry().ok && play('coins', 0.5)} />
         </View>
 
-        <View style={styles.stage}>
-          <View style={styles.dishWrap}>
-            <DishArt kind={recipe.dish} width={260} steam={cooking ? 1 : done ? 0.6 : 0} />
-          </View>
-          <T kind="display" style={{ textAlign: 'center' }}>{recipe.nameVi}</T>
-          <T kind="caption" style={{ textAlign: 'center', maxWidth: 360, alignSelf: 'center' }}>{recipe.blurb}</T>
-          <T kind="caption" style={{ textAlign: 'center' }}>
-            {recipe.equipment} · {recipe.minutes} phút · cần ≥ {formatWeight(recipe.minKg)} cá · {recipe.pantry} phần gia vị
-          </T>
+        <View style={styles.stage} onLayout={(e) => setStageW(e.nativeEvent.layout.width)}>
+          <View style={{ flex: 1 }} />
+          {stageW > 0 && <DishArt kind={recipe.dish} width={Math.min(stageW * 0.85, 360)} steam={cooking ? 1 : done ? 0.7 : 0.45} />}
           {cooking && <FireTending onDone={finish} />}
           {done && !cooking && (
             <Animated.View entering={FadeIn} style={styles.doneBox}>
               <T kind="title">Xong {done.portions} phần</T>
-              <T kind="caption">Chất lượng {Math.round(done.quality * 100)}% · bán được khoảng {dishPrice(done)} xu · đã cất vào kho món</T>
+              <T kind="caption" style={{ textAlign: 'center' }}>Chất lượng {Math.round(done.quality * 100)}% · bán được khoảng {dishPrice(done)} xu · đã cất vào kho món</T>
               <Button small label="Nấu thêm" onPress={() => setDone(null)} style={{ alignSelf: 'center', marginTop: 6 }} />
             </Animated.View>
           )}
         </View>
 
-        <Panel style={styles.side}>
-          <T kind="label">Cá hợp món này ({options.length})</T>
-          {!unlocked ? (
-            <T kind="caption">{DISH_UNLOCK_HINT[recipe.unlock]}</T>
-          ) : options.length === 0 ? (
-            <T kind="caption">Kho chưa có cá hợp món. {recipe.substitutes}</T>
-          ) : (
-            <View style={{ flex: 1 }}>
-            <ScrollView ref={listRef} onLayout={() => longList && listRef.current?.flashScrollIndicators()} style={{ flex: 1 }} contentContainerStyle={{ gap: 4, paddingBottom: longList ? 22 : 0 }}>
-              {options.map((c) => {
-                const on = picked.includes(c.id);
-                return (
-                  <Pressable key={c.id} onPress={() => toggle(c.id)} style={[styles.fishRow, on && { borderColor: C.brass }]}>
-                    <View style={[styles.check, on && { backgroundColor: C.brass, borderColor: C.brass }]} />
-                    <T style={{ flex: 1, fontSize: 14 }} numberOfLines={1}>
-                      {SPECIES_BIO[c.speciesId].nameVi} · {formatWeight(c.weightKg)}
-                    </T>
-                    <T kind="caption">{BAND_LABEL[band(c.freshness)]}</T>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            {longList && <LinearGradient colors={['rgba(11,26,29,0)', 'rgba(11,26,29,0.95)']} style={styles.listFade} pointerEvents="none" />}
+        <View style={[styles.side, { width: sideW }]}>
+          <T style={styles.dishName}>{recipe.nameVi}</T>
+          <T kind="caption" numberOfLines={1}>{unlocked ? recipe.blurb : DISH_UNLOCK_HINT[recipe.unlock]}</T>
+          <View style={styles.box}>
+            <T style={styles.boxHead}>Nguyên liệu</T>
+            <Pressable accessibilityRole="button" accessibilityLabel="Chọn cá" onPress={() => setPickOpen((v) => !v)} style={styles.ing}>
+              <Icon name="fish" size={22} color={C.secondary} />
+              <T style={styles.ingText} numberOfLines={1}>
+                Cá · {picked.length ? `${formatWeight(pickedKg)} · ${picked.length} con` : `cần ≥ ${formatWeight(recipe.minKg)}`}
+              </T>
+              <Icon name={pickOpen ? 'chevron-up' : 'chevron-down'} size={18} color={C.secondary} />
+              <Tick ok={fishOk} />
+            </Pressable>
+            {pickOpen && (
+              <View style={{ maxHeight: 132 }}>
+                {options.length === 0 ? (
+                  <T kind="caption" style={{ padding: 6 }}>{unlocked ? `Kho chưa có cá hợp món. ${recipe.substitutes}` : DISH_UNLOCK_HINT[recipe.unlock]}</T>
+                ) : (
+                  <ScrollView ref={listRef} onLayout={() => longList && listRef.current?.flashScrollIndicators()} contentContainerStyle={{ gap: 4, paddingVertical: 4 }}>
+                    {options.map((c) => {
+                      const on = picked.includes(c.id);
+                      return (
+                        <Pressable key={c.id} onPress={() => toggle(c.id)} style={[styles.fishRow, on && { borderColor: C.brass }]}>
+                          <View style={[styles.check, on && { backgroundColor: C.brass, borderColor: C.brass }]} />
+                          <T style={{ flex: 1, fontSize: 13.5 }} numberOfLines={1}>
+                            {SPECIES_BIO[c.speciesId].nameVi} · {formatWeight(c.weightKg)}
+                          </T>
+                          <T kind="caption">{BAND_LABEL[band(c.freshness)]}</T>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </View>
+            )}
+            <View style={styles.ing}>
+              <Icon name="shaker-outline" size={22} color={C.secondary} />
+              <T style={styles.ingText} numberOfLines={1}>
+                Rau & gia vị · {recipe.pantry}/{save.pantry} phần
+              </T>
+              {!pantryOk && (
+                <Pressable accessibilityRole="button" onPress={() => g().buyPantry().ok && play('coins', 0.5)} disabled={save.money < PANTRY_PRICE} hitSlop={6}>
+                  <T style={styles.buy}>Mua · {PANTRY_PRICE} xu</T>
+                </Pressable>
+              )}
+              <Tick ok={pantryOk} />
             </View>
-          )}
-          <Divider />
+            <View style={[styles.ing, { borderBottomWidth: 0 }]}>
+              <Icon name="bowl-mix-outline" size={22} color={C.secondary} />
+              <T style={styles.ingText} numberOfLines={1}>
+                {check.ok ? `${check.portions} phần · ${Math.round(check.quality * 100)}%` : `${recipe.equipment} · ${recipe.minutes} phút`}
+              </T>
+              <Tick ok={check.ok} />
+            </View>
+          </View>
           {check.ok ? (
-            <View style={[styles.verdict, { borderColor: gain >= 0 ? C.fresh : C.warn }]}>
-              <Line k={`Món ${check.portions} phần · ${Math.round(check.quality * 100)}%`} v={`~${dishValue} xu`} />
-              <Line k={`Gia vị ${recipe.pantry} phần`} v={`−${pantryCost} xu`} />
-              <Line k="Nếu bán cá sống" v={`~${rawValue} xu`} />
-              <T style={[styles.verdictText, { color: gain >= 0 ? C.fresh : C.warn }]}>
-                {gain >= 0 ? `Nấu lời hơn ${gain} xu` : `Bán sống lời hơn ${-gain} xu`}
+            // Advice, not an error: selling raw can pay more, and cooking is still allowed.
+            <View style={styles.verdict}>
+              <Icon name={gain >= 0 ? 'trending-up' : 'information-outline'} size={16} color={gain >= 0 ? C.fresh : C.secondary} />
+              <T style={[styles.verdictText, { color: gain >= 0 ? C.fresh : C.secondary }]} numberOfLines={2}>
+                {gain >= 0 ? `Nấu lời hơn bán sống ${gain} xu` : `Bán sống lời hơn ${-gain} xu`} · món ≈ {dishValue} xu
               </T>
             </View>
           ) : (
             <T kind="caption" style={{ color: C.warn }}>{COOK_ERROR_VI[check.error]}</T>
           )}
-          <Button label={mastered ? 'Nấu nhanh' : 'Bắt đầu nấu'} kind="primary" disabled={!check.ok || cooking} onPress={start} style={{ marginTop: 8 }} />
-          {mastered && <T kind="caption" style={{ marginTop: 4 }}>Đã thuộc món: nấu nhanh với chất lượng ổn định.</T>}
-        </Panel>
+          <View style={{ flex: 1 }} />
+          <Button label={mastered ? 'Nấu nhanh' : 'Bắt đầu nấu'} kind="primary" icon={<Icon name="pot-steam-outline" size={22} color={C.ink} />} disabled={!check.ok || cooking} onPress={start} style={styles.cook} />
+        </View>
       </View>
     </ScreenFrame>
   );
 }
 
-function Line({ k, v }: { k: string; v: string }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-      <T kind="caption">{k}</T>
-      <T kind="caption" style={{ color: C.ivory }}>{v}</T>
-    </View>
-  );
+function Tick({ ok }: { ok: boolean }) {
+  return <Icon name={ok ? 'check-circle' : 'checkbox-blank-circle-outline'} size={20} color={ok ? C.fresh : 'rgba(196,198,175,0.45)'} />;
 }
 
 /**
@@ -235,20 +268,27 @@ function FireTending({ onDone }: { onDone: (skill: number) => void }) {
 
 const styles = StyleSheet.create({
   cols: { flex: 1, flexDirection: 'row', gap: 14 },
-  list: { width: 220, gap: 6 },
-  recipe: { padding: 10, borderRadius: 12, backgroundColor: 'rgba(11,26,29,0.62)', borderWidth: 1, borderColor: 'transparent' },
-  recipeOn: { borderColor: C.brass },
-  recipeName: { fontSize: 16 },
-  stage: { flex: 1, gap: 4, justifyContent: 'center' },
-  dishWrap: { alignItems: 'center' },
-  doneBox: { alignItems: 'center', marginTop: 6 },
-  side: { width: 270 },
-  listFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 28 },
-  verdict: { gap: 3, padding: 10, borderRadius: 10, borderWidth: 1, backgroundColor: 'rgba(243,235,221,0.05)' },
-  verdictText: { fontFamily: F.sansBold, fontSize: 15, marginTop: 4 },
-  fishRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 7, borderRadius: 8, borderWidth: 1, borderColor: C.line },
+  list: { gap: 8 },
+  recipe: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, paddingRight: 10, borderRadius: 14, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine },
+  recipeOn: { borderColor: C.brass, borderWidth: 2 },
+  thumb: { width: 48, height: 42, borderRadius: 10, backgroundColor: 'rgba(243,235,221,0.08)', alignItems: 'center', justifyContent: 'center' },
+  thumbArt: { position: 'absolute', width: 48, height: 42 },
+  recipeName: { flex: 1, fontSize: 13.5, lineHeight: 17 },
+  stage: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 6, gap: 6 },
+  doneBox: { alignItems: 'center', padding: 10, borderRadius: 14, backgroundColor: C.panel },
+  verdict: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  side: { gap: 5, padding: 12, borderRadius: 18, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine },
+  dishName: { fontFamily: F.display, fontSize: 22, lineHeight: 28, color: C.ivory },
+  box: { marginTop: 4, borderRadius: 12, borderWidth: 1, borderColor: C.panelLine, paddingHorizontal: 10 },
+  boxHead: { fontFamily: F.display, fontSize: 15, lineHeight: 20, color: C.ivory, paddingVertical: 5, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.panelLine },
+  ing: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 36, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.panelLine },
+  ingText: { flex: 1, fontFamily: F.sans, fontSize: 14, color: C.ivory },
+  buy: { fontFamily: F.sansBold, fontSize: 13, color: C.brassHi },
+  verdictText: { flex: 1, fontFamily: F.sansMedium, fontSize: 13.5, lineHeight: 18 },
+  cook: { minHeight: 48 },
+  fishRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, borderRadius: 8, borderWidth: 1, borderColor: C.panelLine },
   check: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.5)' },
-  fire: { flexDirection: 'row', gap: 12, padding: 10, borderRadius: 12, backgroundColor: 'rgba(11,26,29,0.7)', marginTop: 8 },
+  fire: { flexDirection: 'row', gap: 12, padding: 10, borderRadius: 12, backgroundColor: C.panel, marginTop: 8 },
   gauge: { width: 26, height: 90, borderRadius: 13, backgroundColor: 'rgba(243,235,221,0.1)', overflow: 'hidden', justifyContent: 'flex-end' },
   band: { position: 'absolute', left: 0, right: 0, height: '24%', backgroundColor: 'rgba(243,235,221,0.25)' },
   flame: { width: '100%', backgroundColor: C.warn, borderTopLeftRadius: 13, borderTopRightRadius: 13 },

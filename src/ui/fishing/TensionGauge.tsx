@@ -14,7 +14,7 @@ export function TensionGauge({ frame, reducedMotion }: { frame: SharedValue<Scen
     const d = Math.min(1, frame.value.danger);
     return {
       width: `${Math.round(d * 100)}%`,
-      backgroundColor: d > 0.85 ? C.warn : d > 0.6 ? C.brass : C.mist,
+      backgroundColor: d > 0.85 ? C.warn : d > 0.6 ? C.brass : C.fresh,
       opacity: d > 0.85 && !reducedMotion ? 0.65 + 0.35 * Math.abs(Math.sin(frame.value.t * 9)) : 1,
     };
   });
@@ -29,7 +29,7 @@ export function TensionGauge({ frame, reducedMotion }: { frame: SharedValue<Scen
         <T kind="label">Độ căng</T>
         <View>
           <Animated.View style={ok}>
-            <T kind="label" style={{ color: C.mist }}>Ổn</T>
+            <T kind="label" style={{ color: C.fresh }}>Ổn định</T>
           </Animated.View>
           <Animated.View style={[StyleSheet.absoluteFill, tight]}>
             <T kind="label" style={{ color: C.brass }}>Căng</T>
@@ -55,9 +55,9 @@ export function TensionGauge({ frame, reducedMotion }: { frame: SharedValue<Scen
 }
 
 const styles = StyleSheet.create({
-  wrap: { width: 220, gap: 6 },
+  wrap: { alignSelf: 'stretch', gap: 6 },
   labels: { flexDirection: 'row', justifyContent: 'space-between' },
-  track: { height: 10, borderRadius: 5, backgroundColor: 'rgba(243,235,221,0.14)', overflow: 'hidden' },
+  track: { height: 8, borderRadius: 4, backgroundColor: 'rgba(243,235,221,0.14)', overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 5, overflow: 'hidden' },
   hatchRow: { flexDirection: 'row', gap: 6, paddingLeft: 2 },
   hatch: { width: 3, height: 20, marginTop: -5, backgroundColor: C.ink, transform: [{ rotate: '35deg' }] },

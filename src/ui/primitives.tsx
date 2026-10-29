@@ -1,4 +1,6 @@
-import { type ReactNode, useState } from 'react';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { type ComponentProps, type ReactNode, useState } from 'react';
 import Animated, { Keyframe } from 'react-native-reanimated';
 import { Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 
@@ -59,11 +61,33 @@ export function Button({ label, kind = 'ghost', style, small, icon, onPress, dis
       ]}
       {...rest}
     >
+      {kind === 'primary' && <BrassFill radius={small ? 10 : 12} />}
       {icon}
       <T style={[styles.btnText, kind === 'primary' && { color: C.ink }, small && { fontSize: 14 }]} numberOfLines={1}>
         {label}
       </T>
     </Pressable>
+  );
+}
+
+export type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/** Line icons for navigation and status (MaterialCommunityIcons, Apache 2.0). */
+export function Icon({ name, size: s = 20, color = C.ivory }: { name: IconName; size?: number; color?: string }) {
+  return <MaterialCommunityIcons name={name} size={s} color={color} />;
+}
+
+/** The restrained brass gradient used only on primary actions. */
+export function BrassFill({ radius }: { radius: number }) {
+  return (
+    <LinearGradient
+      colors={[C.brassHi, C.brass, C.brassLo]}
+      locations={[0, 0.55, 1]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0, y: 1 }}
+      style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
+      pointerEvents="none"
+    />
   );
 }
 
@@ -91,10 +115,9 @@ export function Coin({ value }: { value: number }) {
     setShown(value);
   }
   return (
-    <View style={styles.coin}>
+    <View style={styles.coin} accessibilityLabel={`${value} xu`}>
       <View style={styles.coinDot} />
       <T kind="number">{value.toLocaleString('vi-VN')}</T>
-      <T kind="caption">xu</T>
       {delta && (
         <Animated.View key={delta.key} entering={COIN_DELTA} style={styles.coinDelta} pointerEvents="none">
           <T kind="number" style={{ color: delta.n > 0 ? C.brass : C.textDim }}>
@@ -109,24 +132,24 @@ export function Coin({ value }: { value: number }) {
 
 const styles = StyleSheet.create({
   btn: {
-    minHeight: 44,
+    minHeight: 48,
     paddingHorizontal: 18,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(243,235,221,0.35)',
-    backgroundColor: 'rgba(11,26,29,0.42)',
+    borderColor: 'rgba(196,198,175,0.38)',
+    backgroundColor: 'rgba(14,34,30,0.72)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  small: { minHeight: 36, paddingHorizontal: 12 },
-  primary: { backgroundColor: C.ivory, borderColor: C.ivory },
+  small: { minHeight: 38, paddingHorizontal: 12, borderRadius: 10 },
+  primary: { borderColor: '#E6CF9C', borderRadius: 12, overflow: 'hidden' },
   quiet: { borderColor: 'transparent', backgroundColor: 'transparent' },
   danger: { borderColor: C.warn },
   btnText: { fontFamily: F.sansBold, fontSize: 15, color: C.ivory },
-  panel: { backgroundColor: 'rgba(11,26,29,0.78)', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line, padding: 14 },
-  coin: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  coinDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.brass, borderWidth: 1, borderColor: '#E4CC94' },
-  coinDelta: { position: 'absolute', right: 0, top: 20 },
+  panel: { backgroundColor: C.panel, borderRadius: 16, borderWidth: 1, borderColor: C.panelLine, padding: 14 },
+  coin: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 34, borderRadius: 17, backgroundColor: 'rgba(14,34,30,0.72)', borderWidth: 1, borderColor: C.panelLine },
+  coinDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: C.brass, borderWidth: 1.5, borderColor: '#E9D29E' },
+  coinDelta: { position: 'absolute', right: 8, top: 34 },
 });

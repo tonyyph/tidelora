@@ -10,6 +10,7 @@ pnpm start            # mở bằng Expo Go 58 (iOS hoặc Android)
 pnpm verify           # typecheck + lint + test
 BALANCE=1 pnpm test balance   # in bảng cân bằng đấu cá
 pnpm sounds           # tạo lại âm thanh placeholder
+pnpm art              # build lại ảnh trong assets/art từ art/source (macOS)
 ```
 Game chạy trong Expo Go: mọi module native dùng ở đây đều có sẵn trong Expo Go 58.
 
@@ -22,6 +23,7 @@ exp://127.0.0.1:<port>/--/dev?rich=1&to=kitchen                               # 
 exp://127.0.0.1:<port>/--/dev?debug=1                                         # lớp debug chọn loài trên màn câu
 exp://127.0.0.1:<port>/--/dev?minute=1080&to=fish                             # đặt giờ trong game (18:00)
 exp://127.0.0.1:<port>/--/dev?act=cast&dir=-0.4&power=0.5&hold=hookWindow     # dừng mô phỏng đúng lúc một pha
+exp://127.0.0.1:<port>/--/dev?sheet=tackle | dev?pause=1 | dev?left=1       # mở hộp đồ, tạm dừng, bố cục tay trái
 exp://127.0.0.1:<port>/--/journal?sp=channa-striata
 ```
 

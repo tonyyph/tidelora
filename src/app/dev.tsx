@@ -17,6 +17,8 @@ import { useGame } from '../state/gameStore';
  *   exp://127.0.0.1:8095/--/dev?seed=rich&to=kitchen
  *   exp://127.0.0.1:8095/--/dev?act=cast&dir=-0.4&power=0.5&hold=hookWindow   (freeze at a phase)
  *   exp://127.0.0.1:8095/--/dev?minute=1080&to=fish   (set the clock)
+ *   exp://127.0.0.1:8095/--/dev?sheet=tackle | dev?pause=1   (open fishing overlays)
+ *   exp://127.0.0.1:8095/--/dev?left=1   (left-handed layout)
  */
 export default function Dev() {
   const p = useLocalSearchParams<Record<string, string>>();
@@ -29,6 +31,7 @@ export default function Dev() {
       const g = useGame.getState();
       if (p.new) await g.newGame();
       if (p.debug) g.updateSettings({ debug: p.debug === '1' });
+      if (p.left) g.updateSettings({ leftHanded: p.left === '1' });
       if (p.tutorial === 'done') g.completeTutorial();
       if (p.money) g.patch((s) => ({ ...s, money: Number(p.money) }));
       if (p.minute) g.patch((s) => ({ ...s, minute: Number(p.minute) }));
@@ -95,6 +98,12 @@ export default function Dev() {
             setTimeout(() => clearInterval(id), 60000);
           }
         }
+        router.back();
+        return;
+      }
+      if (p.sheet === 'tackle' || p.pause) {
+        if (p.sheet === 'tackle') devRegistry.openTackle?.();
+        if (p.pause) devRegistry.pause?.();
         router.back();
         return;
       }

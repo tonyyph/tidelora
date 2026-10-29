@@ -14,7 +14,7 @@ import { formatWeight } from '../ui/format';
 import { Button, Panel, T } from '../ui/primitives';
 import { ScreenFrame } from '../ui/Screen';
 import { C } from '../ui/theme';
-import { WoodSurface } from '../ui/WoodSurface';
+import { Backdrop } from '../ui/Backdrop';
 
 /**
  * End of a trip: what came home, what it is worth, and one tap to sell it.
@@ -57,7 +57,7 @@ export default function Trip() {
   const species = [...new Set(fish.map((c) => c.speciesId))];
 
   return (
-    <ScreenFrame title="Về đến nhà" subtitle={`Ngày ${save.day} · mang về ${tripIds.length} con${weight ? ` · ${formatWeight(weight)}` : ''}`} back="/home" background={<WoodSurface tone="bench" />}>
+    <ScreenFrame title="Về đến nhà" subtitle={`Ngày ${save.day} · mang về ${tripIds.length} con${weight ? ` · ${formatWeight(weight)}` : ''}`} back="/home" background={<Backdrop art="bg-home-morning" scrim="room" />}>
       <View style={styles.cols}>
         <View style={{ flex: 1 }}>
           {fish.length === 0 ? (
@@ -103,14 +103,16 @@ export default function Trip() {
             <View style={styles.goal}>
               <T kind="label">Mục tiêu · {goal.name}</T>
               <View style={styles.bar}>
-                <View style={[styles.barFill, { width: `${Math.min(100, Math.round((afterSale / goal.price) * 100))}%` }, afterSale >= goal.price && { backgroundColor: C.brass }]} />
+                <View style={[styles.barFill, { width: `${Math.max(0, Math.min(100, Math.round((afterSale / goal.price) * 100)))}%` }, afterSale >= goal.price && { backgroundColor: C.brass }]} />
               </View>
               <T kind="caption">
-                {afterSale >= goal.price
-                  ? sold
-                    ? 'Đủ tiền rồi! Ghé tiệm đồ câu.'
-                    : `Bán xong là đủ tiền (${afterSale}/${goal.price} xu).`
-                  : `${afterSale}/${goal.price} xu${sold ? '' : ' sau khi bán'} · còn ${goal.price - afterSale} xu`}
+                {save.money >= goal.price && !sold
+                  ? 'Đã đủ tiền. Ghé tiệm đồ câu.'
+                  : afterSale >= goal.price
+                    ? sold
+                      ? 'Đủ tiền rồi! Ghé tiệm đồ câu.'
+                      : `Bán xong là đủ tiền (${afterSale}/${goal.price} xu).`
+                    : `${afterSale}/${goal.price} xu${sold ? '' : ' sau khi bán'} · còn ${goal.price - afterSale} xu`}
               </T>
             </View>
           )}
@@ -159,7 +161,7 @@ const styles = StyleSheet.create({
   goal: { gap: 6, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.line },
   bar: { height: 6, borderRadius: 3, backgroundColor: 'rgba(243,235,221,0.15)', overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3, backgroundColor: C.mist },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 12, backgroundColor: 'rgba(11,26,29,0.72)', borderWidth: 1, borderColor: 'transparent' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 14, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine },
   rowOn: { borderColor: C.brass },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.5)' },
   checkOn: { backgroundColor: C.brass, borderColor: C.brass },

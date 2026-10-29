@@ -14,42 +14,41 @@ mực trong suốt nhẹ, không glassmorphism và không card tràn màn hình.
 | Brass | `#B99B63` |
 | Warning | `#C9755E` |
 
-Màu môi trường thuộc về từng cảnh (`DAWN` trong `bauSenBackdrop.ts`).
+Màu môi trường thuộc về tranh vẽ của từng cảnh (`assets/art`). Panel dùng nền xanh rêu `#142D27`, viền mờ, chữ phụ `#C4C6AF`; chỉ nút chính dùng gradient đồng.
 
 ## Chữ
 - **Lora** (display, có bản italic cho logo và tên khoa học).
 - **Be Vietnam Pro** (dữ liệu và thao tác).
 Cả hai đều có đủ dấu tiếng Việt. Không dùng chữ mảnh nhỏ trên cảnh. Có tùy chọn chữ lớn (+15%).
 
-## Bàu Sen lúc bình minh: các lớp cảnh
-1. Bầu trời: gradient từ xanh xám xuống đào, mặt trời thấp bên trái, mây tầng mỏng bắt nắng.
-2. Rừng tràm xa (mờ, ám màu không khí), lớp sương giữa, rừng tràm gần hơn.
-3. Bờ xa với cụm cỏ năn.
-4. Mặt nước: shader SkSL phản chiếu toàn bộ lớp 1–3. Có gợn theo phối cảnh, fresnel chuyển sang màu trà sẫm ở gần, lấp lánh dọc đường nắng, và vòng gợn đúng vị trí phao, cá rỉa hay cá quẫy.
-5. Năm cây tràm đứng trong nước bên phải (điểm "Gốc tràm ngập"), có bóng phản chiếu và rễ trồi.
-6. Ruộng sen và súng bên trái (điểm "Mép đám sen"), có lá nổi, lá đứng, nụ, hoa và bóng cuống.
-7. Bóng cá dưới nước khi cá đến gần và khi đấu.
-8. Phao, dây và cần: dây võng theo độ căng, cần cong theo tải.
-9. Cầu gỗ ở tiền cảnh, bờ cỏ góc trái đung đưa.
-10. Hai dải sương trôi, một nhóm muỗi nhỏ trong vùng nắng, vignette nhẹ.
+## Bàu Sen: cảnh câu
+Nền là bốn tranh hồ sen cùng một góc máy: sáng, trưa, chiều, đêm (xem `ASSET_MANIFEST.md`), chọn
+theo giờ trong game và hòa dần giữa hai tranh. Tranh phủ kín màn hình theo kiểu cover, đường bờ xa
+được ghim vào đường chân trời của phép chiếu, nên phao rơi cùng một chỗ ở mọi giờ. Trên tranh, code
+vẽ thêm:
+1. Mặt nước sống: shader lấy mẫu lại cả hai tranh đang hòa, gợn nhẹ ở vùng nước giữa (không gợn ở
+   sen và cầu gỗ tiền cảnh), vòng sóng đúng vị trí phao, lấp lánh dọc đường nắng hoặc đường trăng.
+2. Bóng cá dưới nước khi cá đến gần và khi đấu.
+3. Cần theo đồ đang dùng. **Cần tre:** thân vàng có đốt, chuôi quấn dây, không có máy. **Cần
+   carbon:** tay cầm bần và máy là tranh (`rod-grip-reel`), thân graphite và khoen vẽ nối từ đầu
+   khớp, cong theo tải.
+4. Phao theo đồ đang dùng: **phao balsa** là tranh, cắt ở mực nước; **phao lông nhím** vẽ bằng code.
+   Chìm, nghiêng và nằm theo trạng thái câu.
+5. Hai dải sương trôi (mờ hơn về đêm) và vignette nhẹ quanh nguồn sáng.
 
-Particle được dùng tiết chế: chín con muỗi, không phủ toàn màn hình. Chế độ giảm chuyển động làm
-chậm sóng và sương, đồng thời tắt muỗi.
+Chế độ giảm chuyển động làm chậm gợn và sương.
 
-## Giới hạn của hướng 2.5D
-Đây là thế giới 2.5D gồm picture tĩnh và một shader mặt nước. Không có hình học 3D, không có
-khúc xạ thật, cá dưới nước chỉ là bóng. Để đạt chất lượng "painted", cần thay các picture
-procedural bằng ảnh vẽ, phân lớp theo `ASSET_MANIFEST.md`. Shader và logic giữ nguyên.
+## Giới hạn
+Mỗi giờ là một tranh tĩnh cộng shader: không có lớp cảnh tách rời, không có hình học 3D, cá dưới
+nước chỉ là bóng. Nhà chỉ có tranh buổi sáng, đổi tông theo giờ.
 
 ## Sinh vật
-Hiện là vector procedural (`src/rendering/fish/fishShapes.ts`), mỗi loài có silhouette riêng theo
-mô tả hình thái:
+Cá là tranh mặt bên, đầu quay trái (`src/rendering/fish/FishArt.tsx`). Hình thái mong muốn của
+từng loài:
 - **Rô:** thân dày, vây lưng gai dài, đốm gốc đuôi và đốm nắp mang.
 - **Mè vinh:** thân cao, vảy bạc, vây lưng tam giác, đuôi chẻ sâu, vây ánh vàng.
 - **Sặc rằn:** thân bầu dục dẹt, sọc đứt quãng, vạch chéo, vây bụng dạng sợi dài.
 - **Lóc:** thân trụ dài, đầu rắn, vây lưng và vây hậu môn dài, mảng chữ V.
-
-Đây vẫn là placeholder. Phần chi tiết sẽ được thay bằng tranh vẽ.
 
 ## Cấm
 Emoji thay sinh vật, các loài chỉ khác màu trên cùng một dáng, chớp sáng mỗi lần bắt cá, màu

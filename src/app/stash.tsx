@@ -1,205 +1,235 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { play } from '../audio/sound';
-import { RECIPES } from '../cooking/recipes';
+import { PANTRY_PRICE, RECIPES } from '../cooking/recipes';
 import { SPECIES_BIO } from '../ecology/species';
+import type { BaitId } from '../ecology/types';
 import { catchPrice, dishPrice } from '../economy/market';
+import { BAITS } from '../gear/catalog';
 import { atHome } from '../inventory/catches';
 import type { CatchItem } from '../persistence/schema';
 import { BAND_LABEL, band } from '../preservation/freshness';
-import { FishArt } from '../rendering/fish/FishArt';
+import { ART, DISH_ART, type ArtId } from '../rendering/art';
+import { FishArt, fishAspect } from '../rendering/fish/FishArt';
 import { useGame } from '../state/gameStore';
+import { Backdrop } from '../ui/Backdrop';
 import { formatWeight } from '../ui/format';
-import { Button, Panel, T } from '../ui/primitives';
+import { BrassFill, Button, Icon, type IconName, T } from '../ui/primitives';
 import { ScreenFrame } from '../ui/Screen';
-import { C } from '../ui/theme';
-import { WoodSurface } from '../ui/WoodSurface';
+import { C, F } from '../ui/theme';
 
-type Sort = 'new' | 'heavy' | 'fresh';
-const SORT_VI: Record<Sort, string> = { new: 'Mới nhất', heavy: 'Nặng nhất', fresh: 'Tươi nhất' };
+type Tab = 'fish' | 'pantry' | 'dishes';
+const TABS: { id: Tab; label: string; icon: IconName }[] = [
+  { id: 'fish', label: 'Cá tươi', icon: 'fish' },
+  { id: 'pantry', label: 'Nguyên liệu', icon: 'leaf' },
+  { id: 'dishes', label: 'Món ăn', icon: 'bowl-mix-outline' },
+];
 
-/** Home chest. Every fish is its own record; grouping is only a view. */
+const BAND_COLOR = { fresh: C.fresh, good: C.brass, fading: C.warn } as const;
+
+/** Home chest: fish as cards, the chosen one in detail; pantry and cooked dishes alongside. */
 export default function Stash() {
   const save = useGame((s) => s.save);
   const g = useGame.getState;
-  const [tab, setTab] = useState<'fish' | 'dishes'>('fish');
-  const [filter, setFilter] = useState<string | null>(null);
-  const [sort, setSort] = useState<Sort>('new');
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [tab, setTab] = useState<Tab>('fish');
+  const [selId, setSelId] = useState<string | null>(null);
 
   const fish = useMemo(() => {
     if (!save) return [];
-    const list = atHome(save).filter((c) => !filter || c.speciesId === filter);
-    const key = (c: CatchItem) => (sort === 'heavy' ? -c.weightKg : sort === 'fresh' ? -c.freshness : -(c.day * 1440 + c.minute));
-    return list.sort((a, b) => a.speciesId.localeCompare(b.speciesId) || key(a) - key(b));
-  }, [save, filter, sort]);
+    // Species together, freshest first within each, so what to use next is up front.
+    return atHome(save).sort((a, b) => a.speciesId.localeCompare(b.speciesId) || b.freshness - a.freshness);
+  }, [save]);
 
   if (!save) return null;
-  const all = atHome(save);
-  const speciesHere = [...new Set(all.map((c) => c.speciesId))];
-  const chosen = fish.filter((c) => picked.has(c.id));
-  const total = chosen.reduce((s, c) => s + catchPrice(c), 0);
-  const chestValue = all.reduce((s, c) => s + catchPrice(c), 0);
-  // Fading fish lose value first, so picking them all is one tap.
-  const fading = all.filter((c) => band(c.freshness) === 'fading');
+  const sel = fish.find((c) => c.id === selId) ?? fish[0] ?? null;
+  const chestValue = fish.reduce((s, c) => s + catchPrice(c), 0);
+  const fading = fish.filter((c) => band(c.freshness) === 'fading');
+  // Grid 55%, detail 45% of the body (inside the safe area and screen padding).
+  const detailW = Math.round((width - insets.left - insets.right - 40 - 14) * 0.45);
 
-  const toggle = (id: string) => {
-    const next = new Set(picked);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setPicked(next);
-  };
-
-  const sell = () => {
-    if (!chosen.length) return;
-    Alert.alert(`Bán ${chosen.length} con cá?`, `Bạn nhận ${total} xu. Cá đã bán không lấy lại được.`, [
+  const sell = (items: CatchItem[], title: string) => {
+    const total = items.reduce((s, c) => s + catchPrice(c), 0);
+    Alert.alert(title, `Bạn nhận ${total} xu. Cá đã bán không lấy lại được.`, [
       { text: 'Huỷ', style: 'cancel' },
       {
         text: 'Bán',
         onPress: () => {
-          if (g().sell(chosen.map((c) => c.id)).ok) {
-            play('coins');
-            setPicked(new Set());
-          }
+          if (g().sell(items.map((c) => c.id)).ok) play('coins');
         },
       },
     ]);
   };
 
   return (
-    <ScreenFrame title="Kho cá" subtitle="Thùng đá lớn ở nhà · giữ tươi lâu hơn giỏ" background={<WoodSurface tone="bench" />}>
+    <ScreenFrame
+      title="Kho cá"
+      aside={
+        <View style={styles.count}>
+          <T style={styles.countText}>{fish.length} con</T>
+          <Icon name="archive-outline" size={18} color={C.secondary} />
+        </View>
+      }
+      right={fish.length > 1 && tab === 'fish' ? <Button small label={`Bán cả kho · ${chestValue} xu`} onPress={() => sell(fish, `Bán cả ${fish.length} con?`)} /> : undefined}
+      background={<Backdrop art="bg-storage-quiet" scrim="room" />}
+    >
       <View style={styles.tabs}>
-        <Tab on={tab === 'fish'} label={`Cá (${all.length})`} onPress={() => setTab('fish')} />
-        <Tab on={tab === 'dishes'} label={`Món đã nấu (${save.dishes.length})`} onPress={() => setTab('dishes')} />
-        <View style={{ flex: 1 }} />
-        {tab === 'fish' && (
-          <>
-            {(Object.keys(SORT_VI) as Sort[]).map((s) => (
-              <Tab key={s} small on={sort === s} label={SORT_VI[s]} onPress={() => setSort(s)} />
-            ))}
-          </>
-        )}
+        {TABS.map((t) => {
+          const on = t.id === tab;
+          return (
+            <Pressable key={t.id} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => setTab(t.id)} style={[styles.tab, on && styles.tabOn]}>
+              {on && <BrassFill radius={12} />}
+              <Icon name={t.icon} size={20} color={on ? C.ink : C.secondary} />
+              <T style={[styles.tabText, on && { color: C.ink }]}>{t.label}</T>
+            </Pressable>
+          );
+        })}
       </View>
 
-      {tab === 'fish' ? (
-        all.length === 0 ? (
+      {tab === 'fish' &&
+        (fish.length === 0 || !sel ? (
           <Empty title="Thùng đá còn trống" body="Cá giữ lại trong chuyến câu sẽ được cất ở đây khi bạn về nhà." action="Ra bàu câu" onAction={() => router.replace('/prep')} />
         ) : (
-          <View style={{ flex: 1, flexDirection: 'row', gap: 12 }}>
-            <View style={{ flex: 1 }}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filters}>
-                <Tab small on={!filter} label="Tất cả" onPress={() => setFilter(null)} />
-                {speciesHere.map((id) => (
-                  <Tab key={id} small on={filter === id} label={`${SPECIES_BIO[id].nameVi} · ${all.filter((c) => c.speciesId === id).length}`} onPress={() => setFilter(id)} />
-                ))}
-              </ScrollView>
-              <FlatList
-                data={fish}
-                keyExtractor={(c) => c.id}
-                contentContainerStyle={{ gap: 6, paddingBottom: 12 }}
-                renderItem={({ item, index }) => (
-                  <>
-                    {(index === 0 || fish[index - 1].speciesId !== item.speciesId) && (
-                      <T kind="label" style={{ marginTop: index ? 8 : 0 }}>
-                        {SPECIES_BIO[item.speciesId].nameVi} · {fish.filter((c) => c.speciesId === item.speciesId).length} con ·{' '}
-                        {formatWeight(fish.filter((c) => c.speciesId === item.speciesId).reduce((s, c) => s + c.weightKg, 0))}
-                      </T>
-                    )}
-                    <FishRow item={item} picked={picked.has(item.id)} onPress={() => toggle(item.id)} />
-                  </>
-                )}
-              />
-            </View>
-            <Panel style={styles.side}>
-              <T kind="label">Cả kho · {all.length} con</T>
-              <T kind="caption">Giá chợ hôm nay ~{chestValue} xu</T>
-              <View style={styles.sideBlock}>
-                <Button label={chosen.length ? `Bán ${chosen.length} con · +${total} xu` : 'Chạm cá để chọn'} kind="primary" disabled={!chosen.length} onPress={sell} />
-                <View style={{ flexDirection: 'row', gap: 6 }}>
-                  <Button label="Chọn hết" small style={{ flex: 1 }} onPress={() => setPicked(new Set(fish.map((c) => c.id)))} />
-                  <Button label="Bỏ chọn" small style={{ flex: 1 }} disabled={!chosen.length} onPress={() => setPicked(new Set())} />
-                </View>
-                {fading.length > 0 && (
-                  <Button label={`Chọn ${fading.length} con kém tươi`} small kind="danger" onPress={() => setPicked(new Set(fading.map((c) => c.id)))} />
-                )}
+          <View style={styles.cols}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
+              {fish.map((c) => (
+                <FishCard key={c.id} item={c} on={c.id === sel.id} onPress={() => setSelId(c.id)} />
+              ))}
+            </ScrollView>
+            <Animated.View key={sel.id} entering={FadeIn.duration(220)} style={[styles.detail, { width: detailW }]}>
+              <T style={styles.detailName} numberOfLines={1}>{SPECIES_BIO[sel.speciesId].nameVi}</T>
+              <View style={styles.stats}>
+                <Icon name="weight" size={16} color={C.secondary} />
+                <T style={styles.stat}>{formatWeight(sel.weightKg)}</T>
+                <T style={styles.stat}>·</T>
+                <Icon name="tape-measure" size={16} color={C.secondary} />
+                <T style={styles.stat}>{sel.lengthCm.toLocaleString('vi-VN')} cm</T>
+                <View style={{ flex: 1 }} />
+                <Icon name="leaf" size={16} color={BAND_COLOR[band(sel.freshness)]} />
+                <T style={[styles.stat, { color: BAND_COLOR[band(sel.freshness)] }]}>{BAND_LABEL[band(sel.freshness)]}</T>
               </View>
-              <View style={{ flex: 1 }} />
-              <Button label="Mang vào bếp" small onPress={() => router.push('/kitchen')} />
-              <T kind="caption" style={{ marginTop: 6 }}>Cá chỉ giảm tươi theo giờ trong game.</T>
-            </Panel>
+              <FitFish speciesId={sel.speciesId} maxWidth={detailW - 48} />
+              <View style={styles.actions}>
+                <Button label="Vào bếp" icon={<Icon name="pot-steam-outline" size={20} />} style={{ flex: 1 }} onPress={() => router.push('/kitchen')} />
+                <Button
+                  label={`Bán · ${catchPrice(sel)} xu`}
+                  kind="primary"
+                  icon={<View style={styles.coin} />}
+                  style={{ flex: 1 }}
+                  onPress={() => {
+                    if (g().sell([sel.id]).ok) {
+                      play('coins');
+                      setSelId(null);
+                    }
+                  }}
+                />
+              </View>
+              {fading.length > 0 && <Button small kind="danger" label={`Bán ${fading.length} con kém tươi`} onPress={() => sell(fading, `Bán ${fading.length} con kém tươi?`)} />}
+            </Animated.View>
           </View>
-        )
-      ) : save.dishes.length === 0 ? (
-        <Empty title="Chưa có món nào" body="Món nấu từ cá giữ được giá trị, không bị giảm tươi như cá sống." action="Vào bếp" onAction={() => router.push('/kitchen')} />
-      ) : (
-        <FlatList
-          data={save.dishes}
-          keyExtractor={(d) => d.id}
-          contentContainerStyle={{ gap: 6 }}
-          renderItem={({ item }) => (
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <T style={{ fontSize: 16 }}>{RECIPES[item.recipeId].nameVi}</T>
-                <T kind="caption">
-                  {item.portions} phần · chất lượng {Math.round(item.quality * 100)}% · từ {item.sourceCatchIds.length} con cá
-                </T>
-              </View>
-              <Button
-                small
-                label={`Bán · +${dishPrice(item)} xu`}
-                onPress={() => {
-                  if (g().sellDish([item.id]).ok) play('coins');
-                }}
-              />
-            </View>
-          )}
-        />
+        ))}
+
+      {tab === 'pantry' && (
+        <ScrollView contentContainerStyle={styles.grid}>
+          <Stock art={null} icon="shaker-outline" title="Gia vị" note={`${save.pantry} phần · mua thêm ở bếp, ${PANTRY_PRICE} xu một phần`} />
+          {(Object.keys(BAITS) as BaitId[]).map((b) => (
+            <Stock
+              key={b}
+              art={b === 'worm' ? 'item-earthworm' : null}
+              icon={b === 'bran' ? 'grain' : 'fishbowl-outline'}
+              title={BAITS[b].nameVi}
+              note={BAITS[b].free ? 'Tự đào ven bờ, luôn có' : `Còn ${save.baitStock[b]} lần quăng`}
+            />
+          ))}
+        </ScrollView>
       )}
+
+      {tab === 'dishes' &&
+        (save.dishes.length === 0 ? (
+          <Empty title="Chưa có món nào" body="Món nấu từ cá giữ được giá trị, không bị giảm tươi như cá sống." action="Vào bếp" onAction={() => router.push('/kitchen')} />
+        ) : (
+          <ScrollView contentContainerStyle={styles.grid}>
+            {save.dishes.map((d) => (
+              <View key={d.id} style={[styles.card, styles.dishCard]}>
+                <Image source={ART[DISH_ART[RECIPES[d.recipeId].dish]]} style={styles.dishArt} resizeMode="contain" />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <T style={styles.cardName}>{RECIPES[d.recipeId].nameVi}</T>
+                  <T kind="caption">
+                    {d.portions} phần · chất lượng {Math.round(d.quality * 100)}%
+                  </T>
+                  <Button
+                    small
+                    kind="primary"
+                    label={`Bán · ${dishPrice(d)} xu`}
+                    style={{ alignSelf: 'flex-start', marginTop: 4 }}
+                    onPress={() => {
+                      if (g().sellDish([d.id]).ok) play('coins');
+                    }}
+                  />
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        ))}
     </ScreenFrame>
   );
 }
 
-function FishRow({ item, picked, onPress }: { item: CatchItem; picked: boolean; onPress: () => void }) {
+/** The selected fish as large as the space between the stats and the actions allows. */
+function FitFish({ speciesId, maxWidth }: { speciesId: string; maxWidth: number }) {
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+  // About three quarters of the picture area, never past its height.
+  const w = box ? Math.min(maxWidth, box.w * 0.78, (box.h - 8) / fishAspect(speciesId)) : 0;
+  return (
+    <View style={styles.hero} onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+      {w > 0 && <FishArt speciesId={speciesId} width={w} />}
+    </View>
+  );
+}
+
+function FishCard({ item, on, onPress }: { item: CatchItem; on: boolean; onPress: () => void }) {
   const b = band(item.freshness);
   return (
-    <Pressable onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked: picked }} style={[styles.row, picked && styles.rowOn]}>
-      <View style={[styles.check, picked && styles.checkOn]} />
-      <View style={{ width: 92, alignItems: 'center' }}>
-        <FishArt speciesId={item.speciesId} width={Math.min(92, 44 + item.lengthCm * 1.6)} shadow={false} />
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={`${SPECIES_BIO[item.speciesId].nameVi}, ${formatWeight(item.weightKg)}, ${BAND_LABEL[b]}`}
+      onPress={onPress}
+      style={[styles.card, on && styles.cardOn]}
+    >
+      <View style={styles.cardArt}>
+        <FishArt speciesId={item.speciesId} width={Math.min(150, 70 + item.lengthCm * 2.4)} shadow={false} />
       </View>
-      <View style={{ flex: 1 }}>
-        <T style={{ fontSize: 15 }} numberOfLines={1}>
-          {formatWeight(item.weightKg)}
-        </T>
-        <T kind="caption" numberOfLines={1}>
-          {item.lengthCm.toLocaleString('vi-VN')} cm · ngày {item.day}
-        </T>
+      <View style={[styles.dot, { backgroundColor: BAND_COLOR[b] }]} />
+      <View style={styles.cardFoot}>
+        <T style={styles.cardName} numberOfLines={1}>{SPECIES_BIO[item.speciesId].nameVi}</T>
+        <T style={styles.cardWeight}>{formatWeight(item.weightKg)}</T>
       </View>
-      <View style={{ width: 86, gap: 4 }}>
-        <T kind="caption" style={{ color: b === 'fading' ? C.warn : b === 'good' ? C.brass : C.fresh }}>{BAND_LABEL[b]}</T>
-        <View style={styles.bar}>
-          <View style={[styles.barFill, { width: `${Math.round(item.freshness * 100)}%`, backgroundColor: b === 'fading' ? C.warn : C.mist }]} />
-        </View>
-      </View>
-      <T kind="number" style={{ width: 70, textAlign: 'right' }}>{catchPrice(item)} xu</T>
     </Pressable>
   );
 }
 
-function Tab({ on, label, onPress, small }: { on: boolean; label: string; onPress: () => void; small?: boolean }) {
+function Stock({ art, icon, title, note }: { art: ArtId | null; icon: IconName; title: string; note: string }) {
   return (
-    <Pressable onPress={onPress} accessibilityState={{ selected: on }} style={[styles.tab, small && { paddingVertical: 5 }, on && styles.tabOn]}>
-      <T style={[{ fontSize: small ? 13 : 15 }, on && { color: C.ink }]}>{label}</T>
-    </Pressable>
+    <View style={[styles.card, styles.stockCard]}>
+      <View style={styles.stockArt}>{art ? <Image source={ART[art]} style={{ width: 64, height: 44 }} resizeMode="contain" /> : <Icon name={icon} size={34} color={C.brassHi} />}</View>
+      <View style={{ flex: 1 }}>
+        <T style={styles.cardName}>{title}</T>
+        <T kind="caption">{note}</T>
+      </View>
+    </View>
   );
 }
 
 function Empty({ title, body, action, onAction }: { title: string; body: string; action: string; onAction: () => void }) {
   return (
     <View style={styles.empty}>
-      <View style={styles.emptyMark} />
+      <Image source={ART['item-basket']} style={{ width: 90, height: 78, opacity: 0.9 }} resizeMode="contain" />
       <T kind="title">{title}</T>
       <T kind="caption" style={{ maxWidth: 360, textAlign: 'center' }}>{body}</T>
       <Button label={action} small onPress={onAction} style={{ marginTop: 8 }} />
@@ -208,19 +238,31 @@ function Empty({ title, body, action, onAction }: { title: string; body: string;
 }
 
 const styles = StyleSheet.create({
-  tabs: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
-  filterScroll: { flexGrow: 0, marginBottom: 8 },
-  filters: { flexDirection: 'row', gap: 6 },
-  sideBlock: { gap: 8, marginTop: 12 },
-  tab: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, backgroundColor: 'rgba(11,26,29,0.55)', borderWidth: 1, borderColor: C.line },
-  tabOn: { backgroundColor: C.ivory, borderColor: C.ivory },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 12, backgroundColor: 'rgba(11,26,29,0.72)', borderWidth: 1, borderColor: 'transparent' },
-  rowOn: { borderColor: C.brass },
-  check: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.5)' },
-  checkOn: { backgroundColor: C.brass, borderColor: C.brass },
-  bar: { height: 4, borderRadius: 2, backgroundColor: 'rgba(243,235,221,0.15)' },
-  barFill: { height: 4, borderRadius: 2 },
-  side: { width: 240, gap: 2 },
+  count: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  countText: { fontFamily: F.sansMedium, fontSize: 16, color: C.secondary },
+  tabs: { flexDirection: 'row', gap: 8, marginBottom: 12, padding: 4, borderRadius: 16, backgroundColor: 'rgba(14,34,30,0.6)', borderWidth: 1, borderColor: C.panelLine, alignSelf: 'flex-start' },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, paddingHorizontal: 16, borderRadius: 12, overflow: 'hidden' },
+  tabOn: {},
+  tabText: { fontFamily: F.sansMedium, fontSize: 14.5, color: C.secondary },
+  cols: { flex: 1, flexDirection: 'row', gap: 14 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 16 },
+  card: { width: '48.5%', borderRadius: 16, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine, overflow: 'hidden' },
+  cardOn: { borderColor: C.brass, borderWidth: 2 },
+  cardArt: { height: 92, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(60,82,52,0.35)' },
+  dot: { position: 'absolute', right: 10, top: 10, width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderColor: 'rgba(0,0,0,0.3)' },
+  cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
+  cardName: { fontFamily: F.display, fontSize: 16.5, lineHeight: 22, color: C.ivory, flexShrink: 1 },
+  cardWeight: { fontFamily: F.sansMedium, fontSize: 13.5, color: C.secondary },
+  detail: { gap: 8, padding: 16, borderRadius: 18, backgroundColor: C.panel, borderWidth: 1, borderColor: C.panelLine },
+  detailName: { fontFamily: F.display, fontSize: 26, lineHeight: 34, color: C.ivory },
+  stats: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.panelLine },
+  stat: { fontFamily: F.sansMedium, fontSize: 14, color: C.secondary },
+  hero: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 60 },
+  actions: { flexDirection: 'row', gap: 8 },
+  coin: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#E2C682', borderWidth: 1.5, borderColor: '#8D6E39' },
+  dishCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10 },
+  dishArt: { width: 96, height: 72 },
+  stockCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
+  stockArt: { width: 64, height: 48, alignItems: 'center', justifyContent: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  emptyMark: { width: 54, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: 'rgba(243,235,221,0.35)', marginBottom: 8 },
 });

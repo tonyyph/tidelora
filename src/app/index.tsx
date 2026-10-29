@@ -5,8 +5,8 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { setLoop } from '../audio/sound';
-import { LiveBackdrop } from '../rendering/scene/LiveBackdrop';
 import { useGame } from '../state/gameStore';
+import { Backdrop } from '../ui/Backdrop';
 import { Button, T } from '../ui/primitives';
 import { C, F } from '../ui/theme';
 
@@ -40,17 +40,18 @@ export default function Title() {
 
   return (
     <View style={styles.root}>
-      <LiveBackdrop />
-      <View style={[StyleSheet.absoluteFill, styles.shade]} pointerEvents="none" />
+      <Backdrop art="bg-home-morning" scrim="left" minute={save?.minute} />
       <Animated.View entering={FadeIn.duration(1200)} style={[styles.logo, { left: insets.left + 28, top: insets.top + 22 }]}>
         <T style={styles.word}>Tidelora</T>
-        <T kind="caption" style={styles.tag}>A living world beneath the surface</T>
+        <View style={styles.swash} />
+        <T style={styles.tag}>{'Một ngày\nbên mặt nước'}</T>
+        <T style={styles.where}>Đồng Tháp Mười</T>
       </Animated.View>
       <Animated.View entering={FadeIn.delay(500).duration(900)} style={[styles.actions, { right: insets.right + 28, bottom: insets.bottom + 22 }]}>
         <View style={styles.row}>
-          {save && <Button label="Hành trình mới" kind="quiet" small onPress={start} />}
-          <Button label="Nhật ký" kind="quiet" small onPress={() => router.push('/journal')} disabled={!save} />
-          <Button label="Cài đặt" kind="quiet" small onPress={() => router.push('/settings')} />
+          {save && <Button label="Hành trình mới" small onPress={start} />}
+          <Button label="Nhật ký" small onPress={() => router.push('/journal')} disabled={!save} />
+          <Button label="Cài đặt" small onPress={() => router.push('/settings')} />
         </View>
         <Button label={save ? 'Tiếp tục' : 'Bắt đầu'} kind="primary" onPress={save ? resume : start} style={styles.primary} />
       </Animated.View>
@@ -60,11 +61,12 @@ export default function Title() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ink },
-  shade: { backgroundColor: 'rgba(5,14,16,0.12)' },
   logo: { position: 'absolute' },
-  word: { fontFamily: F.displayItalic, fontSize: 30, lineHeight: 42, paddingTop: 4, color: C.ivory, letterSpacing: 0.5, textShadowColor: 'rgba(0,0,0,0.35)', textShadowRadius: 6 },
-  tag: { marginTop: 2, color: 'rgba(243,235,221,0.8)' },
+  word: { fontFamily: F.display, fontSize: 40, lineHeight: 50, paddingTop: 4, color: C.ivory, letterSpacing: 0.5, textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 8 },
+  swash: { width: 120, height: 2, borderRadius: 1, backgroundColor: C.ivory, opacity: 0.7, marginLeft: 30, marginBottom: 16 },
+  tag: { fontFamily: F.display, fontSize: 34, lineHeight: 40, color: C.ivory, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 10 },
+  where: { fontFamily: F.sansMedium, fontSize: 15, color: C.ivory, marginTop: 6 },
   actions: { position: 'absolute', alignItems: 'flex-end', gap: 10 },
-  row: { flexDirection: 'row', gap: 4 },
-  primary: { minWidth: 200 },
+  row: { flexDirection: 'row', gap: 8 },
+  primary: { minWidth: 220, minHeight: 54, borderRadius: 27 },
 });

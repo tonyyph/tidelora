@@ -10,10 +10,10 @@ import { useGame } from '../state/gameStore';
 import { clockLabel } from '../preservation/freshness';
 import { conditionsLabel, dayPart } from '../rendering/scene/timeOfDay';
 import { formatDepth } from '../ui/format';
-import { Button, Panel, T } from '../ui/primitives';
+import { Button, Icon, Panel, T } from '../ui/primitives';
 import { ScreenFrame } from '../ui/Screen';
 import { C } from '../ui/theme';
-import { WoodSurface } from '../ui/WoodSurface';
+import { Backdrop } from '../ui/Backdrop';
 
 const SLOT_VI: Record<GearSlot, string> = { rod: 'Cần', reel: 'Máy', line: 'Cước', hook: 'Lưỡi', float: 'Phao', cooler: 'Giữ cá' };
 
@@ -53,8 +53,7 @@ export default function Prep() {
     <ScreenFrame
       title="Chuẩn bị chuyến đi"
       subtitle={`${BAU_SEN.nameVi} · ${conditionsLabel(save.minute, BAU_SEN.weather.nameVi)} · ${clockLabel(save.minute)} ${dayPart(save.minute)}`}
-      background={<WoodSurface tone="bench" />}
-      right={<Button label="Xuống bàu" kind="primary" style={{ minWidth: 170 }} onPress={() => router.replace('/fish')} />}
+      background={<Backdrop art="bg-home-morning" scrim="room" />}
     >
       <View style={styles.cols}>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.bench}>
@@ -124,7 +123,10 @@ export default function Prep() {
           </Panel>
         </ScrollView>
 
+        {/* Gear list scrolls; the way out to the water stays pinned below it. */}
+        <View style={styles.side}>
         <Panel style={styles.gear}>
+          <ScrollView contentContainerStyle={{ paddingBottom: 2 }}>
           <T kind="label">Bộ cần · chạm để đổi</T>
           {(Object.keys(SLOT_VI) as GearSlot[]).map((slot) => {
             const item = GEAR[save.loadout[slot]];
@@ -146,7 +148,10 @@ export default function Prep() {
               </Pressable>
             );
           })}
+          </ScrollView>
         </Panel>
+        <Button label="Xuống bàu" kind="primary" icon={<Icon name="arrow-right" size={20} color={C.ink} />} onPress={() => router.replace('/fish')} style={styles.go} />
+        </View>
       </View>
     </ScreenFrame>
   );
@@ -154,16 +159,18 @@ export default function Prep() {
 
 const styles = StyleSheet.create({
   cols: { flex: 1, flexDirection: 'row', gap: 14 },
-  gear: { width: 250, gap: 0 },
+  side: { width: 260, gap: 10 },
+  gear: { flex: 1, gap: 0, paddingVertical: 10 },
+  go: { minHeight: 52, flexDirection: 'row-reverse' },
   bench: { gap: 10, paddingBottom: 12 },
   presets: { flexDirection: 'row', gap: 8 },
   preset: { flex: 1, paddingHorizontal: 9, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(185,155,99,0.55)', backgroundColor: 'rgba(11,26,29,0.4)', gap: 2 },
-  presetOn: { backgroundColor: C.ivory, borderColor: C.ivory },
+  presetOn: { backgroundColor: C.brass, borderColor: C.brassHi },
   slot: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line },
   slotAction: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: 'hidden' },
   slotSwap: { color: C.ink, backgroundColor: C.brass },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   rowLabel: { width: 64 },
   chip: { paddingHorizontal: 11, minHeight: 40, justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(243,235,221,0.3)' },
-  chipOn: { backgroundColor: C.ivory, borderColor: C.ivory },
+  chipOn: { backgroundColor: C.brass, borderColor: C.brassHi },
 });

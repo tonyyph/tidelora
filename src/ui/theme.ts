@@ -16,6 +16,13 @@ export const C = {
   paperInk: '#2B2A24',
   paperDim: '#6B6555',
   fresh: '#8DB596',
+  /** Dark green card over painted scenes (asset pack v1 tokens). */
+  panel: 'rgba(17,40,35,0.93)',
+  panelSolid: '#142D27',
+  panelLine: 'rgba(196,198,175,0.2)',
+  secondary: '#C4C6AF',
+  brassHi: '#DCC08A',
+  brassLo: '#9E7F48',
 };
 
 export const F = {

@@ -1,0 +1,172 @@
+[
+  {
+    "id": "home-morning",
+    "file": "backgrounds/home-morning.png",
+    "width": 1774,
+    "height": 887,
+    "alpha": false,
+    "alphaRange": null,
+    "resizeMode": "cover",
+    "status": "generated-static-art",
+    "prompt": "Wide 2:1 landscape clean background for HOME matching top left reference. Vietnamese lakeside thatched wooden porch on right, lotus lake on left, sunrise mist. Props on right table, left center quiet water for title, bottom clear for navigation. NO text UI logos buttons humans."
+  },
+  {
+    "id": "fishing-lake-morning",
+    "file": "backgrounds/fishing-lake-morning.png",
+    "width": 1774,
+    "height": 887,
+    "alpha": false,
+    "alphaRange": null,
+    "resizeMode": "cover",
+    "status": "generated-static-art",
+    "prompt": "Wide 2:1 landscape clean FISHING background matching top right reference. Lotus lake morning, distant melaleuca forest, subtle mist, left foreground lotus, small wooden dock at bottom edge. Open calm central water for float and ripples. NO fishing rod, line, hands, fish, UI, text, target ripple. Scene only."
+  },
+  {
+    "id": "storage-interior",
+    "file": "backgrounds/storage-interior.png",
+    "width": 1774,
+    "height": 887,
+    "alpha": false,
+    "alphaRange": null,
+    "resizeMode": "cover",
+    "status": "generated-static-art",
+    "prompt": "Wide 2:1 landscape background for INVENTORY. Authentic Vietnamese wooden lakeside storage room, wicker baskets and cooler near edges, soft warm window light, deep forest green shadow palette, gently defocused center to support overlaid inventory cards. No fish, text, panels, icons or UI. Match bottom left reference atmosphere."
+  },
+  {
+    "id": "kitchen-interior",
+    "file": "backgrounds/kitchen-interior.png",
+    "width": 1774,
+    "height": 887,
+    "alpha": false,
+    "alphaRange": null,
+    "resizeMode": "cover",
+    "status": "generated-static-art",
+    "prompt": "Wide 2:1 landscape clean background for KITCHEN matching bottom right. Warm rustic Vietnamese kitchen, sun through rear window, jars and earthenware along edges, broad empty stone and aged wood counter in center foreground for separate dish sprite. No food hero bowl, no dishes on center counter, no text or UI. Beautiful realistic materials."
+  },
+  {
+    "id": "fish-climbing-perch",
+    "file": "sprites/fish-climbing-perch.png",
+    "width": 1536,
+    "height": 1024,
+    "alpha": true,
+    "alphaRange": [
+      0,
+      254
+    ],
+    "resizeMode": "contain",
+    "status": "generated-static-art",
+    "prompt": "One climbing perch Anabas testudineus, natural olive brown scales, compact elongated oval body, spiny dorsal fin, natural small eye, not a round cichlid. Exact lateral view facing left, whole body and fins visible."
+  },
+  {
+    "id": "fish-silver-barb",
+    "file": "sprites/fish-silver-barb.png",
+    "width": 1536,
+    "height": 1024,
+    "alpha": true,
+    "alphaRange": [
+      0,
+      254
+    ],
+    "resizeMode": "contain",
+    "status": "generated-static-art",
+    "prompt": "One silver barb Barbonymus gonionotus, silver reflective scales, laterally compressed body, forked tail, modest yellowish fins. Exact lateral view facing left, whole body and fins visible."
+  },
+  {
+    "id": "fish-snakeskin-gourami",
+    "file": "sprites/fish-snakeskin-gourami.png",
+    "width": 1536,
+    "height": 1024,
+    "alpha": true,
+    "alphaRange": [
+      0,
+      254
+    ],
+    "resizeMode": "contain",
+    "status": "generated-static-art",
+    "prompt": "One snakeskin gourami Trichopodus pectoralis, elongated oval compressed body, mottled snakeskin grey olive pattern, dark lateral stripe, long anal fin and two thin pelvic feelers. Exact lateral view facing left, whole body all fins and feelers visible."
+  },
+  {
+    "id": "fish-striped-snakehead",
+    "file": "sprites/fish-striped-snakehead.png",
+    "width": 1774,
+    "height": 887,
+    "alpha": true,
+    "alphaRange": [
+      0,
+      255
+    ],
+    "resizeMode": "contain",
+    "status": "generated-static-art",
+    "prompt": "One striped snakehead Channa striata, long cylindrical dark olive body, flattened broad head, long dorsal and anal fins, rounded tail, natural dark oblique flank markings. Exact lateral view facing left, whole body and fins visible."
+  },
+  {
+    "id": "dish-sour-fish-soup",
+    "file": "sprites/dish-sour-fish-soup.png",
+    "width": 1374,
+    "height": 1145,
+    "alpha": true,
+    "alphaRange": [
+      0,
+      255
+    ],
+    "resizeMode": "contain",
+    "status": "generated-static-art",
+    "prompt": "One beautiful Vietnamese ceramic bowl of canh chua fish soup, cooked fish portions, tomato, pineapple, okra and herbs, appetizing translucent golden broth. Three-quarter front view slightly above, entire bowl visible, no floating ingredients, no separate props, no steam baked in."
+  },
+  {
+    "id": "dish-braised-fish",
+    "file": "sprites/dish-braised-fish.png",
+    "width": 1374,
+    "height": 1145,
+    "alpha": true,
+    "alphaRange": [
+      0,
+      255
+    ],
+    "resizeMode": "contain",
+    "status": "generated-static-art",
+    "prompt": "One rustic Vietnamese dark earthenware pot of caramel braised fish ca kho to, fish steaks in glossy amber brown sauce, pepper and modest scallion and chili garnish. Three-quarter front view slightly above, entire pot and handles visible, no extra props, no steam."
+  },
+  {
+    "id": "dish-grilled-fish",
+    "file": "sprites/dish-grilled-fish.png",
+    "width": 1536,
+    "height": 1024,
+    "alpha": true,
+    "alphaRange": [
+      0,
+      254
+    ],
+    "resizeMode": "contain",
+    "status": "generated-static-art",
+    "prompt": "One Vietnamese grilled whole fish on a simple oval ceramic plate lined with banana leaf, light char, modest herb garnish, realistic appetizing natural food. Three-quarter front view slightly above, entire plate visible, no extra props."
+  },
+  {
+    "id": "rod-reel",
+    "file": "sprites/rod-reel.png",
+    "width": 1024,
+    "height": 1536,
+    "alpha": true,
+    "alphaRange": [
+      0,
+      254
+    ],
+    "resizeMode": "contain",
+    "status": "generated-static-art",
+    "prompt": "One isolated realistic graphite fishing rod with spinning reel and cork handle, straight relaxed rod, diagonal from butt at lower right to tip at upper left, whole rod and all rings inside canvas with generous margins, no line, no hands. Premium black carbon subtle brass details, functional realistic reel. Tall diagonal composition for first-person overlay."
+  },
+  {
+    "id": "tackle-items-atlas",
+    "file": "sprites/tackle-items-atlas.png",
+    "width": 1536,
+    "height": 1024,
+    "alpha": true,
+    "alphaRange": [
+      0,
+      254
+    ],
+    "resizeMode": "contain",
+    "status": "generated-static-art",
+    "prompt": "A production transparent asset atlas in a strict 3 columns x 2 rows grid, each item entirely isolated in its own equally sized cell with 20% transparent padding and no overlap. Top row: one green fishing tackle box, one blue portable cooler, one wicker fish basket. Bottom row: one red-white slim fishing float upright, one closed naturalist field journal with blank cover, one small earthworm bait loosely curved. No text, no labels, no shadows connecting items."
+  }
+]

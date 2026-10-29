@@ -5,27 +5,27 @@ import {
   DashPathEffect,
   Fill,
   Group,
+  Image,
   ImageShader,
-  LinearGradient,
   Oval,
   Path,
-  Picture,
   RadialGradient,
   Rect,
   RoundedRect,
   Shader,
   Skia,
+  type SkImage,
   useClock,
+  useImage,
   vec,
 } from '@shopify/react-native-skia';
 import { useMemo } from 'react';
-import { PixelRatio } from 'react-native';
 import { useDerivedValue, type SharedValue } from 'react-native-reanimated';
 
+import { ART, LAKE_HORIZON, lakeLight } from '../art';
+import { ART_SIZE } from '../artManifest';
 import { makeView } from '../projection';
 import type { SceneFrame } from '../sceneFrame';
-import { DAWN, recordBackdrop, recordForeground, recordGrass, recordLotus, recordRootTrees, SUN_X } from './bauSenBackdrop';
-import { timeGrade } from './timeOfDay';
 import { WATER_EFFECT } from './waterShader';
 
 type Props = {
@@ -36,44 +36,80 @@ type Props = {
   reducedMotion: boolean;
   /** Screen rect of the float close-up, or null to hide it. */
   loupe?: { x: number; y: number; w: number; h: number } | null;
-  /** Game clock in minutes since midnight; grades the dawn painting to the hour. */
+  /** Game clock in minutes since midnight; picks and crossfades the lake paintings. */
   minute?: number;
+  /** Equipped rod and float: each draws as its own kind. */
+  rod?: 'bamboo' | 'carbon';
+  float?: 'quill' | 'balsa';
 };
 
-const hex3 = (h: string) => {
-  const c = Skia.Color(h);
-  return [c[0], c[1], c[2]];
-};
-const DEEP = hex3('#1C2D2A');
-const SHALLOW = hex3('#44554A');
+const LAKE = ART_SIZE['bg-fishing-lake-morning'];
 
-const MIDGES = Array.from({ length: 9 }, (_, i) => ({ phase: i * 1.7, ox: (i * 37) % 100, oy: (i * 53) % 100 }));
+/**
+ * Cover-fit the lake painting, then slide it vertically (within cover) so its
+ * shoreline sits on the projection's horizon and casts land on painted water.
+ */
+export function lakeRect(width: number, height: number, horizon: number) {
+  const k = Math.max(width / LAKE.w, height / LAKE.h);
+  const w = LAKE.w * k;
+  const h = LAKE.h * k;
+  const y = Math.min(0, Math.max(height - h, horizon - LAKE_HORIZON * h));
+  return { x: (width - w) / 2, y, width: w, height: h };
+}
 
-export function BauSenScene({ width, height, frame, quality, reducedMotion, loupe = null, minute = 6 * 60 }: Props) {
+/** Graphite blank guides, as a share of the blank from the grip socket to the tip. */
+const GUIDES = [0.2, 0.38, 0.53, 0.66, 0.77, 0.86, 0.94];
+/** Bamboo nodes, as a share of the pole from butt to tip. */
+const NODES = [0.26, 0.37, 0.47, 0.56, 0.64, 0.72, 0.79, 0.86, 0.92];
+
+/**
+ * The carbon rod's grip and reel are painted (rod-grip-reel); its blank and line
+ * are drawn. Anchors in the sprite's pixels: the butt cap, and the socket where
+ * the blank leaves the grip.
+ */
+const GRIP = ART_SIZE['rod-grip-reel'];
+const GRIP_BUTT = { x: 692, y: 628 };
+const GRIP_SOCKET = { x: 58, y: 18 };
+const GRIP_LEN = Math.hypot(GRIP_SOCKET.x - GRIP_BUTT.x, GRIP_SOCKET.y - GRIP_BUTT.y);
+const GRIP_ANGLE = Math.atan2(GRIP_SOCKET.y - GRIP_BUTT.y, GRIP_SOCKET.x - GRIP_BUTT.x);
+/** Blank width at the socket, in sprite pixels. */
+const GRIP_SOCKET_W = 22;
+
+/**
+ * The balsa float sprite, drawn with its waterline at y = 0: everything above
+ * `BALSA_WATERLINE` (share of its height, low on the body) shows above water.
+ */
+const BALSA = ART_SIZE['float-balsa'];
+const BALSA_WATERLINE = 0.56;
+const BALSA_K = 30 / (BALSA.h * BALSA_WATERLINE);
+
+function FloatBody({ kind, balsa }: { kind: 'quill' | 'balsa'; balsa: SkImage | null }) {
+  if (kind === 'balsa' && balsa) {
+    return <Image image={balsa} x={(-BALSA.w * BALSA_K) / 2} y={-BALSA.h * BALSA_WATERLINE * BALSA_K} width={BALSA.w * BALSA_K} height={BALSA.h * BALSA_K} fit="fill" />;
+  }
+  // Porcupine quill: banded dark and pale, a red tip to read against the water.
+  return (
+    <>
+      <Rect x={-1.5} y={-26} width={3} height={26} color="#E9E1CC" />
+      <Rect x={-1.5} y={-17} width={3} height={4} color="#2B2A24" />
+      <Rect x={-1.5} y={-9} width={3} height={4} color="#2B2A24" />
+      <Rect x={-1.7} y={-26} width={3.4} height={7} color="#D8573A" />
+      <Rect x={-0.6} y={-25} width={0.8} height={20} color="#FFFFFF" opacity={0.3} />
+    </>
+  );
+}
+
+export function BauSenScene({ width, height, frame, quality, reducedMotion, loupe = null, minute = 6 * 60, rod = 'bamboo', float = 'quill' }: Props) {
   const view = useMemo(() => makeView(width, height), [width, height]);
-  const layers = useMemo(() => {
-    const backdrop = recordBackdrop(view);
-    // CPU raster: the reflection source is made once, off the GPU, at a modest scale
-    // (it is always seen distorted, so full resolution would be wasted memory).
-    const pr = Math.min(PixelRatio.get(), 1.5);
-    const surface = Skia.Surface.Make(Math.round(width * pr), Math.round(height * pr));
-    let image = null;
-    if (surface) {
-      const c = surface.getCanvas();
-      c.scale(pr, pr);
-      c.drawPicture(backdrop);
-      surface.flush();
-      image = surface.makeImageSnapshot();
-    }
-    return {
-      backdrop,
-      image,
-      trees: recordRootTrees(view),
-      lotus: recordLotus(view),
-      foreground: recordForeground(view),
-      grass: recordGrass(view),
-    };
-  }, [view, width, height]);
+  const light = lakeLight(minute);
+  // Only the painting on show and the one it is fading into are loaded.
+  const lakeA = useImage(ART[light.a]);
+  const lakeB = useImage(light.mix > 0 ? ART[light.b] : null);
+  const lake = lakeA;
+  const grip = useImage(rod === 'carbon' ? ART['rod-grip-reel'] : null);
+  const balsa = useImage(float === 'balsa' ? ART['float-balsa'] : null);
+  const lr = useMemo(() => lakeRect(width, height, view.horizon), [width, height, view.horizon]);
+  const sunX = lr.x + lr.width * light.glintX;
 
   const clock = useClock();
   const detail = quality === 'high' ? 1 : 0;
@@ -86,54 +122,98 @@ export function BauSenScene({ width, height, frame, quality, reducedMotion, loup
       res: [width, height],
       horizon: view.horizon,
       time: (clock.value / 1000) * motion,
-      sunX: width * SUN_X,
-      wind: 0.4,
+      sunX,
       detail,
+      blend: lakeB ? light.mix : 0,
+      glint: light.glint,
+      glintCol: light.glintRGB,
       r0: [r[0], r[1], r[2], r[3]],
       r1: [r[4], r[5], r[6], r[7]],
       r2: [r[8], r[9], r[10], r[11]],
       r3: [r[12], r[13], r[14], r[15]],
-      deep: DEEP,
-      shallow: SHALLOW,
     };
   });
 
-  // Rod: a tapered curve from the butt (off-screen, bottom right) to the tip, bent by load.
-  const rodPath = useDerivedValue(() => {
+  // Rod. Bamboo: one tapered pole from the butt (off-screen, bottom right) to the tip,
+  // with a cord-wrapped grip and nodes. Carbon: the painted grip and reel lie straight
+  // from the butt towards the tip, and a thin graphite blank runs on from its socket.
+  // Either flexible part is a quadratic bent by load; `strip` builds the tapered outline
+  // between two points along it, so the grip wrap, nodes and guides follow the bend.
+  const rodParts = useDerivedValue(() => {
     const f = frame.value;
-    const bx = width * 0.8;
-    const by = height + 40;
+    const carbon = rod === 'carbon';
+    const bx = width * (carbon ? 0.83 : 0.8);
+    const by = height + (carbon ? height * 0.1 : 40);
     const tx = f.tipX;
     const ty = f.tipY;
-    const dx = tx - bx;
-    const dy = ty - by;
-    const len = Math.hypot(dx, dy);
+    const reach = Math.hypot(tx - bx, ty - by) || 1;
+    const gripLen = carbon ? Math.min(height * 0.48, reach * 0.55) : 0;
+    const sx = bx + ((tx - bx) / reach) * gripLen;
+    const sy = by + ((ty - by) / reach) * gripLen;
+    const dx = tx - sx;
+    const dy = ty - sy;
+    const len = Math.hypot(dx, dy) || 1;
     const nx = -dy / len;
     const ny = dx / len;
     const bend = 0.06 + f.bend * 0.22;
-    const cx = bx + dx * 0.55 + nx * len * bend * Math.sign(dx || 1) * -1;
-    const cy = by + dy * 0.55 + ny * len * bend * Math.sign(dx || 1) * -1;
-    const p = Skia.PathBuilder.Make();
-    const N = 14;
-    const left: number[][] = [];
-    const right: number[][] = [];
-    for (let i = 0; i <= N; i++) {
-      const t = i / N;
-      const x = (1 - t) * (1 - t) * bx + 2 * (1 - t) * t * cx + t * t * tx;
-      const y = (1 - t) * (1 - t) * by + 2 * (1 - t) * t * cy + t * t * ty;
-      const gx = 2 * (1 - t) * (cx - bx) + 2 * t * (tx - cx);
-      const gy = 2 * (1 - t) * (cy - by) + 2 * t * (ty - cy);
+    const cx = sx + dx * 0.55 + nx * len * bend * Math.sign(dx || 1) * -1;
+    const cy = sy + dy * 0.55 + ny * len * bend * Math.sign(dx || 1) * -1;
+    const at = (t: number) => {
+      const x = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * cx + t * t * tx;
+      const y = (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * cy + t * t * ty;
+      const gx = 2 * (1 - t) * (cx - sx) + 2 * t * (tx - cx);
+      const gy = 2 * (1 - t) * (cy - sy) + 2 * t * (ty - cy);
       const gl = Math.hypot(gx, gy) || 1;
-      const w = 5.5 * (1 - t) + 0.9;
-      left.push([x - (gy / gl) * w * 0.5, y + (gx / gl) * w * 0.5]);
-      right.push([x + (gy / gl) * w * 0.5, y - (gx / gl) * w * 0.5]);
+      return { x, y, nx: -gy / gl, ny: gx / gl };
+    };
+    const scale = gripLen / GRIP_LEN;
+    const socketW = GRIP_SOCKET_W * scale;
+    const thick = carbon ? (t: number) => socketW * (1 - t) * (1 - t * 0.3) + 1.1 : (t: number) => 13 * (1 - t) * (1 - t * 0.35) + 2;
+    const strip = (t0: number, t1: number, k: number) => {
+      const p = Skia.PathBuilder.Make();
+      const N = 14;
+      const right: number[][] = [];
+      for (let i = 0; i <= N; i++) {
+        const t = t0 + ((t1 - t0) * i) / N;
+        const q = at(t);
+        const w = thick(t) * k * 0.5;
+        if (i === 0) p.moveTo(q.x + q.nx * w, q.y + q.ny * w);
+        else p.lineTo(q.x + q.nx * w, q.y + q.ny * w);
+        right.push([q.x - q.nx * w, q.y - q.ny * w]);
+      }
+      for (let i = right.length - 1; i >= 0; i--) p.lineTo(right[i][0], right[i][1]);
+      p.close();
+      return p.build();
+    };
+    const marks = Skia.PathBuilder.Make();
+    if (carbon) {
+      for (const g of GUIDES) {
+        const q = at(g);
+        const r = thick(g) * 0.75 + 1.2;
+        marks.addCircle(q.x + q.nx * r, q.y + q.ny * r, Math.max(1, thick(g) * 0.45));
+      }
+    } else {
+      for (const n of NODES) {
+        const q = at(n);
+        const w = thick(n) * 0.62;
+        marks.moveTo(q.x + q.nx * w, q.y + q.ny * w);
+        marks.lineTo(q.x - q.nx * w, q.y - q.ny * w);
+      }
     }
-    p.moveTo(left[0][0], left[0][1]);
-    for (let i = 1; i < left.length; i++) p.lineTo(left[i][0], left[i][1]);
-    for (let i = right.length - 1; i >= 0; i--) p.lineTo(right[i][0], right[i][1]);
-    p.close();
-    return p.build();
+    const gripAt = [
+      { translateX: bx },
+      { translateY: by },
+      { rotate: Math.atan2(ty - by, tx - bx) - GRIP_ANGLE },
+      { scale: scale || 0.0001 },
+      { translateX: -GRIP_BUTT.x },
+      { translateY: -GRIP_BUTT.y },
+    ];
+    return { blank: strip(carbon ? 0 : 0.17, 1, 1), grip: strip(0, 0.2, 1.25), marks: marks.build(), gripAt };
   });
+  const rodBlank = useDerivedValue(() => rodParts.value.blank);
+  const rodGrip = useDerivedValue(() => rodParts.value.grip);
+  const rodMarks = useDerivedValue(() => rodParts.value.marks);
+  const gripTransform = useDerivedValue(() => rodParts.value.gripAt);
 
   const linePath = useDerivedValue(() => {
     const f = frame.value;
@@ -211,28 +291,9 @@ export function BauSenScene({ width, height, frame, quality, reducedMotion, loup
   const aimDotX = useDerivedValue(() => frame.value.aimX);
   const aimDotY = useDerivedValue(() => frame.value.aimY);
 
-  const grassTransform = useDerivedValue(() => {
-    const t = clock.value / 1000;
-    return [{ skewX: reducedMotion ? 0 : Math.sin(t * 0.9) * 0.025 + Math.sin(t * 2.3) * 0.006 }];
-  });
-
   const mistA = useDerivedValue(() => ((clock.value / 1000) * 4 * motion) % (width * 1.6));
   const mistRectA = useDerivedValue(() => Skia.XYWHRect(mistA.value - width * 0.6, view.horizon - height * 0.05, width * 0.7, height * 0.09));
   const mistRectB = useDerivedValue(() => Skia.XYWHRect(((mistA.value * 0.6 + width * 0.8) % (width * 1.6)) - width * 0.6, view.horizon + height * 0.02, width * 0.8, height * 0.06));
-
-  const midges = useDerivedValue(() => {
-    const t = clock.value / 1000;
-    const p = Skia.PathBuilder.Make();
-    if (detail === 0 || reducedMotion) return p.build();
-    for (const m of MIDGES) {
-      const x = width * (SUN_X + 0.02) + Math.sin(t * 0.7 + m.phase) * 40 + (m.ox - 50) * 1.4;
-      const y = view.horizon - height * 0.12 + Math.cos(t * 1.1 + m.phase * 1.3) * 18 + (m.oy - 50) * 0.6;
-      p.addCircle(x, y, 1.1);
-    }
-    return p.build();
-  });
-
-  const sunX = width * SUN_X;
 
   // Loupe: a close-up of the float so nibbles read even when it is cast far out.
   const L = loupe ?? { x: 0, y: 0, w: 1, h: 1 };
@@ -259,28 +320,34 @@ export function BauSenScene({ width, height, frame, quality, reducedMotion, loup
     return [{ translateX: lcx + f.floatLie * 10 }, { translateY: lcy }, { scale: 2.1 }, { translateY: dip * 22 }, { rotate: f.floatLie * 1.35 }];
   });
   const loupeFish = useDerivedValue(() => (frame.value.fishHeading ? 0 : frame.value.fishAlpha * 1.4));
-  const grade = timeGrade(minute);
+  // The loupe magnifies the painted water around the float, at the float's own zoom.
+  const loupeWater = useDerivedValue(() => {
+    const f = frame.value;
+    const z = Math.min(5, 2.1 / Math.max(f.floatScale, 0.35));
+    return [{ translateX: lcx }, { translateY: lcy }, { scale: z }, { translateX: -f.floatX }, { translateY: -f.floatY }];
+  });
   const loupeHot = useDerivedValue(() => (frame.value.bite >= 1 ? (reducedMotion ? 1 : 0.6 + 0.4 * Math.abs(Math.sin(clock.value / 160))) : 0));
 
   return (
     <Canvas style={{ width, height }}>
-      <Picture picture={layers.backdrop} />
-      {layers.image ? (
-        <Rect x={0} y={view.horizon} width={width} height={height - view.horizon}>
-          <Shader source={WATER_EFFECT} uniforms={uniforms}>
-            <ImageShader image={layers.image} fit="fill" rect={{ x: 0, y: 0, width, height }} />
-          </Shader>
-        </Rect>
-      ) : (
-        <Rect x={0} y={view.horizon} width={width} height={height - view.horizon} color={DAWN.water} />
+      <Fill color="#1E2A26" />
+      {lake && (
+        <>
+          <Image image={lake} x={lr.x} y={lr.y} width={lr.width} height={lr.height} fit="fill" />
+          {lakeB && light.mix > 0 && <Image image={lakeB} x={lr.x} y={lr.y} width={lr.width} height={lr.height} fit="fill" opacity={light.mix} />}
+          <Rect x={0} y={view.horizon} width={width} height={height - view.horizon}>
+            <Shader source={WATER_EFFECT} uniforms={uniforms}>
+              <ImageShader image={lake} fit="fill" rect={lr} />
+              <ImageShader image={lakeB ?? lake} fit="fill" rect={lr} />
+            </Shader>
+          </Rect>
+        </>
       )}
-      <Group opacity={0.5}>
-        <Oval rect={mistRectB} color="#E7E3D8">
+      <Group opacity={0.35 * (1 - light.night * 0.6)}>
+        <Oval rect={mistRectB} color="#F4E9D6">
           <BlurMask blur={18} style="normal" />
         </Oval>
       </Group>
-      <Picture picture={layers.trees} />
-      <Picture picture={layers.lotus} />
 
       <Group transform={fishTransform} opacity={fishOpacity}>
         <Oval rect={fishRect} color="#0A1413">
@@ -299,10 +366,7 @@ export function BauSenScene({ width, height, frame, quality, reducedMotion, loup
         <Oval x={-9} y={-2} width={18} height={4} color="#E8E2D2" opacity={floatRing} style="stroke" strokeWidth={0.8} />
         <Group clip={Skia.XYWHRect(-30, -60, 60, 60)}>
           <Group transform={floatInner}>
-            <Rect x={-1.6} y={-26} width={3.2} height={26} color="#2F3326" />
-            <Rect x={-1.7} y={-26} width={3.4} height={9} color="#D8573A" />
-            <Rect x={-1.7} y={-17} width={3.4} height={2} color="#F3EBDD" />
-            <Rect x={-0.6} y={-25} width={0.8} height={20} color="#FFFFFF" opacity={0.25} />
+            <FloatBody kind={float} balsa={balsa} />
           </Group>
         </Group>
       </Group>
@@ -312,49 +376,54 @@ export function BauSenScene({ width, height, frame, quality, reducedMotion, loup
       <Path path={linePath} style="stroke" strokeWidth={0.9} color="#EDE6D6" opacity={lineOpacity} />
       <Path path={chevron} style="stroke" strokeWidth={2.2} strokeCap="round" strokeJoin="round" color={chevronColor} opacity={0.85} />
 
-      <Picture picture={layers.foreground} />
-      <Group transform={grassTransform} origin={vec(0, height)}>
-        <Picture picture={layers.grass} />
-      </Group>
+      {rod === 'carbon' ? (
+        <>
+          <Path path={rodBlank} color="#15181B" />
+          <Path path={rodBlank} style="stroke" strokeWidth={0.6} color="#8A949C" opacity={0.4} />
+          <Path path={rodMarks} style="stroke" strokeWidth={1} color="#C7B184" opacity={0.9} />
+          {grip && (
+            <Group transform={gripTransform}>
+              <Image image={grip} x={0} y={0} width={GRIP.w} height={GRIP.h} fit="fill" />
+            </Group>
+          )}
+        </>
+      ) : (
+        <>
+          <Path path={rodBlank} color="#B8975A" />
+          <Path path={rodBlank} style="stroke" strokeWidth={0.8} color="#6E5530" opacity={0.6} />
+          <Path path={rodMarks} style="stroke" strokeWidth={1.6} strokeCap="round" color="#6B4F28" opacity={0.85} />
+          <Path path={rodGrip} color="#3A2C20" />
+          <Path path={rodGrip} style="stroke" strokeWidth={0.8} color="#7A6046" opacity={0.6} />
+        </>
+      )}
 
-      <Path path={rodPath} color="#2B241D" />
-      <Path path={rodPath} style="stroke" strokeWidth={0.6} color="#A88F6A" opacity={0.5} />
-
-      <Group opacity={0.32}>
-        <Oval rect={mistRectA} color="#EFEBE1">
+      <Group opacity={0.28 * (1 - light.night * 0.6)}>
+        <Oval rect={mistRectA} color="#F6ECDC">
           <BlurMask blur={22} style="normal" />
         </Oval>
       </Group>
-      <Path path={midges} color="#F6E3BC" opacity={0.7} />
 
       <Rect x={0} y={0} width={width} height={height}>
-        <RadialGradient c={vec(sunX, view.horizon * 0.85)} r={Math.max(width, height) * 0.9} colors={['#00000000', '#00000000', '#0A12124D']} positions={[0, 0.55, 1]} />
+        <RadialGradient c={vec(sunX, view.horizon * 0.85)} r={Math.max(width, height) * 0.9} colors={['#00000000', '#00000000', '#0A121240']} positions={[0, 0.6, 1]} />
       </Rect>
-      <Fill color="#F1CFA0" opacity={0.035} blendMode="softLight" />
-      {grade.tint !== '#FFFFFF' && <Fill color={grade.tint} blendMode="multiply" />}
-      {grade.lift > 0 && <Fill color="#FFFFFF" opacity={grade.lift} blendMode="softLight" />}
 
       {loupe && (
         <Group opacity={loupeOpacity}>
           <Group clip={loupeClip}>
-            <Rect x={L.x} y={L.y} width={L.w} height={L.h}>
-              <LinearGradient
-                start={vec(0, L.y)}
-                end={vec(0, L.y + L.h)}
-                colors={['#93A397', '#7E9186', '#4C665A', '#1F3832']}
-                positions={[0, 0.7, 0.73, 1]}
-              />
-            </Rect>
+            <Rect x={L.x} y={L.y} width={L.w} height={L.h} color="#2F3F38" />
+            {lake && (
+              <Group transform={loupeWater}>
+                <Image image={lake} x={lr.x} y={lr.y} width={lr.width} height={lr.height} fit="fill" />
+                {lakeB && light.mix > 0 && <Image image={lakeB} x={lr.x} y={lr.y} width={lr.width} height={lr.height} fit="fill" opacity={light.mix} />}
+              </Group>
+            )}
             <Oval x={lcx - 52} y={lcy + 14} width={92} height={16} color="#0A1413" opacity={loupeFish}>
               <BlurMask blur={6} style="normal" />
             </Oval>
             <Path path={loupeRings} style="stroke" strokeWidth={1.4} color="#F3EBDD" opacity={loupeRingOpacity} />
             <Group transform={loupeFloat}>
               <Group clip={Skia.XYWHRect(-30, -60, 60, 60)}>
-                <Rect x={-1.6} y={-26} width={3.2} height={26} color="#2F3326" />
-                <Rect x={-1.7} y={-26} width={3.4} height={9} color="#D8573A" />
-                <Rect x={-1.7} y={-17} width={3.4} height={2} color="#F3EBDD" />
-                <Rect x={-0.6} y={-25} width={0.8} height={20} color="#FFFFFF" opacity={0.25} />
+                <FloatBody kind={float} balsa={balsa} />
               </Group>
             </Group>
           </Group>
